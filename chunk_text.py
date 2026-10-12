@@ -78,6 +78,10 @@ def chunk_extracted_document(
     file_stem = Path(source_file).stem
     pages = extracted_data.get("pages", [])
     total_pages = extracted_data.get("total_pages", len(pages))
+    page_to_heading = {
+        p.get("page_number", 1): (p.get("headings", [None])[0] if p.get("headings") else None)
+        for p in pages
+    }
 
     # 1. Flatten into token stream with page tags
     token_stream = build_word_stream(pages)
@@ -127,6 +131,12 @@ def chunk_extracted_document(
         end_page = unique_pages[-1] if unique_pages else 1
 
         chunk_id = f"{file_stem}_chunk_{chunk_seq:04d}"
+        citation = (
+            f"{source_file}, Page {start_page}"
+            if start_page == end_page
+            else f"{source_file}, Pages {start_page}-{end_page}"
+        )
+        heading = page_to_heading.get(start_page)
 
         chunk_record: Dict[str, Any] = {
             "chunk_id": chunk_id,
@@ -136,6 +146,8 @@ def chunk_extracted_document(
             "start_page": start_page,
             "end_page": end_page,
             "page_numbers": unique_pages,
+            "source_citation": citation,
+            "section_heading": heading,
             "char_count": len(chunk_text),
             "word_count": len(current_words),
         }
