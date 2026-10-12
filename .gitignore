@@ -50,3 +50,4 @@ data/page_images/*
 *.swo
 .DS_Store
 Thumbs.db
+test2/*
