@@ -1,1 +1,6 @@
 pymupdf>=1.24.0
+pytest>=8.0.0
+
+# Optional: IBM Docling for deep layout, heading, and table extraction
+# Uncomment or install directly when needed:
+# docling>=2.0.0

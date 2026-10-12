@@ -89,6 +89,9 @@ def extract_page_text(pdf_path: Path) -> Dict[str, Any]:
                     "text": cleaned_text,
                     "char_count": len(cleaned_text),
                     "is_empty": is_empty,
+                    "headings": [],
+                    "paragraphs": [cleaned_text] if cleaned_text else [],
+                    "tables": [],
                 }
             )
 
@@ -97,6 +100,10 @@ def extract_page_text(pdf_path: Path) -> Dict[str, Any]:
             "total_pages": total_pages,
             "empty_pages": empty_pages,
             "has_empty_pages": len(empty_pages) > 0,
+            "backend_used": "pymupdf",
+            "fallback_occurred": False,
+            "fallback_reason": None,
+            "tables": [],
             "pages": pages_data,
         }
 
@@ -141,7 +148,7 @@ def save_json_output(
 def parse_arguments() -> argparse.Namespace:
     """Parse and validate command line arguments."""
     parser = argparse.ArgumentParser(
-        description="Extract text page-by-page from PDF files for AMCRAG (Milestone 1)."
+        description="Extract text page-by-page from PDF files for AMCRAG (Milestone 1 & 3)."
     )
     parser.add_argument(
         "pdf_path",
@@ -154,6 +161,13 @@ def parse_arguments() -> argparse.Namespace:
         type=Path,
         default=Path("data/processed"),
         help="Directory where JSON output will be saved (default: data/processed)",
+    )
+    parser.add_argument(
+        "--backend",
+        "-b",
+        choices=["pymupdf", "docling", "auto"],
+        default="pymupdf",
+        help="Extraction backend: 'pymupdf' (default), 'docling' (structured), or 'auto' (tries Docling, falls back to PyMuPDF)",
     )
     parser.add_argument(
         "--overwrite",
@@ -169,11 +183,18 @@ def main() -> None:
     input_pdf: Path = args.pdf_path
     output_directory: Path = args.output_dir
 
-    print(f"\n[AMCRAG Milestone 1] Processing: '{input_pdf}'...")
+    print(f"\n[AMCRAG Extraction] Processing: '{input_pdf}' (Backend: {args.backend})...")
 
     try:
-        # Step 1: Extract page-wise text
-        extraction_result = extract_page_text(input_pdf)
+        # Step 1: Extract based on selected backend
+        if args.backend == "docling":
+            from docling_extractor import extract_docling_structured
+            extraction_result = extract_docling_structured(input_pdf)
+        elif args.backend == "auto":
+            from docling_extractor import extract_with_fallback
+            extraction_result = extract_with_fallback(input_pdf, prefer_docling=True)
+        else:
+            extraction_result = extract_page_text(input_pdf)
 
         # Step 2: Determine output JSON filename (<pdf_stem>_extracted.json)
         output_filename = f"{input_pdf.stem}_extracted.json"
@@ -190,19 +211,29 @@ def main() -> None:
         # Step 4: Display clear summary report
         total_pages = extraction_result["total_pages"]
         empty_pages = extraction_result["empty_pages"]
+        backend_used = extraction_result.get("backend_used", args.backend)
+        fallback_occurred = extraction_result.get("fallback_occurred", False)
+        fallback_reason = extraction_result.get("fallback_reason")
 
         print("\n" + "=" * 55)
         print(" EXTRACTION SUCCESSFUL")
         print("=" * 55)
-        print(f" Source File : {extraction_result['source_file']}")
-        print(f" Total Pages : {total_pages}")
+        print(f" Source File  : {extraction_result['source_file']}")
+        print(f" Total Pages  : {total_pages}")
+        print(f" Backend Used : {backend_used}")
+        if fallback_occurred:
+            print(f" [!] Fallback : Primary Docling failed ({fallback_reason}).")
+            print("                Recovered gracefully using PyMuPDF fallback.")
+        if extraction_result.get("tables"):
+            print(f" Tables Found : {len(extraction_result['tables'])}")
         overwrite_note = " (Overwrote existing file)" if was_overwritten else ""
-        print(f" Output JSON : {saved_path.resolve()}{overwrite_note}")
+        print(f" Output JSON  : {saved_path.resolve()}{overwrite_note}")
         print("-" * 55)
 
         for page in extraction_result["pages"]:
             status_tag = "[EMPTY / NO TEXT]" if page["is_empty"] else f"[{page['char_count']} chars]"
-            print(f" - Page {page['page_number']:>2}: {status_tag}")
+            headings_tag = f" ({len(page.get('headings', []))} heading(s))" if page.get("headings") else ""
+            print(f" - Page {page['page_number']:>2}: {status_tag}{headings_tag}")
 
         if empty_pages:
             print("-" * 55)
@@ -216,6 +247,9 @@ def main() -> None:
         sys.exit(1)
     except FileNotFoundError as err:
         print(f"\n[Error] {err}", file=sys.stderr)
+        sys.exit(1)
+    except ImportError as err:
+        print(f"\n[Dependency Notice] {err}", file=sys.stderr)
         sys.exit(1)
     except ValueError as err:
         print(f"\n[Error] {err}", file=sys.stderr)

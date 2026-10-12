@@ -8,78 +8,108 @@
 ## 1. Overview & Architecture
 
 Person 1's module prepares clean, structured knowledge representations from input PDF research papers for downstream AMCRAG teammates:
-- **Milestone 1 (`extract_pdf.py`):** Page-wise text extraction using PyMuPDF (`fitz`), preserving 1-based page order, transparently detecting empty/whitespace pages without inventing text.
-- **Milestone 2 (`chunk_text.py`):** Configurable sliding-window text chunking with overlap, preserving word boundaries, source file provenance, stable unique IDs, and exact start/end page numbers for citation tracking.
+- **Milestone 1 (`extract_pdf.py`):** Page-wise text extraction using PyMuPDF (`fitz`), preserving 1-based page order, detecting empty/whitespace pages without inventing text.
+- **Milestone 2 (`chunk_text.py`):** Configurable sliding-window text chunking with overlap, preserving word boundaries, provenance, stable unique IDs, and start/end page numbers.
+- **Milestone 3 (`docling_extractor.py`):** Optional structured document extraction using IBM Docling for headings, paragraphs, and tables, with automatic, transparent fallback to PyMuPDF.
 
-Extraction and chunking are cleanly decoupled into separate, reusable modules.
+All milestones are decoupled into separate, reusable modules that adhere to a unified JSON contract.
 
 ---
 
 ## 2. Setup & Installation
 
-### Prerequisites
-- Python 3.10+ (tested on Python 3.13)
-
-### Installation
+### Core Dependencies (Fast & Lightweight)
 ```bash
 pip install -r requirements.txt
 ```
-*(Requires `pymupdf>=1.24.0` and `pytest>=8.0.0` for automated testing).*
+*(Installs `pymupdf>=1.24.0` and `pytest>=8.0.0`)*
+
+### Optional: IBM Docling for Deep Layout Parsing
+If you want to use the optional deep-learning structured extraction backend:
+```bash
+pip install docling
+```
+*(If Docling is not installed, the pipeline automatically detects this and falls back to PyMuPDF without crashing or failing).*
 
 ---
 
 ## 3. How to Run
 
-### Milestone 1: PDF Text Extraction (`extract_pdf.py`)
+### Extraction (`extract_pdf.py`)
 
-Extract text page-by-page from any PDF file:
+Extract text page-by-page from any PDF file using your chosen backend:
 
 ```bash
-# Basic extraction
+# 1. Default (Fast PyMuPDF extraction - 100% backward compatible)
 python extract_pdf.py data/sample.pdf
 
-# Overwrite existing extracted output
-python extract_pdf.py data/sample.pdf --overwrite
+# 2. Auto Backend (Tries Docling for structure; falls back to PyMuPDF if uninstalled/fails)
+python extract_pdf.py data/sample.pdf --backend auto
 
-# Custom output directory
-python extract_pdf.py data/sample.pdf --output-dir my_custom_dir
+# 3. Strict Docling Backend (Requires Docling installed; reports error if uninstalled)
+python extract_pdf.py data/sample.pdf --backend docling
+
+# 4. Overwrite existing extracted output
+python extract_pdf.py data/sample.pdf --overwrite
 ```
 Outputs: `data/processed/<name>_extracted.json`
 
 ---
 
-### Milestone 2: Text Chunking (`chunk_text.py`)
+### Chunking (`chunk_text.py`)
 
 Chunk directly from a raw PDF **or** from an already extracted JSON file:
 
 ```bash
-# Chunk directly from PDF with default parameters (chunk_size=500, chunk_overlap=100)
+# Chunk directly from PDF
 python chunk_text.py data/sample.pdf
 
 # Custom chunk size and overlap
 python chunk_text.py data/sample.pdf --chunk-size 300 --chunk-overlap 50
 
 # Chunk an already extracted JSON file
-python chunk_text.py data/processed/sample_extracted.json
-
-# Overwrite existing chunk output
-python chunk_text.py data/sample.pdf --overwrite
+python chunk_text.py data/processed/sample_extracted.json --overwrite
 ```
 Outputs: `data/processed/<name>_chunks.json`
 
 ---
 
-## 4. Chunking Logic & Walkthrough
+## 4. Output JSON Schemas
 
-### Word-Stream Page Tagging
-1. Every word in the document is mapped to its origin page: `[(word_1, page_1), (word_2, page_1), ..., (word_k, page_2)]`.
-2. **Word Boundary Preservation:** Chunks accumulate complete words until reaching `chunk_size` characters, ensuring words are never truncated in half.
-3. **Multi-Page Tracking:** If a chunk begins with words from Page 1 and ends with words from Page 2, `start_page` is set to `1`, `end_page` is set to `2`, and `page_numbers` contains `[1, 2]`.
-4. **Controlled Overlap:** The next chunk steps backward to include ~`chunk_overlap` characters from the end of the previous chunk, ensuring semantic context is preserved across chunk boundaries while guaranteeing steady forward progress without duplicate chunks.
+### Normalized Extraction Schema (`data/processed/<name>_extracted.json`)
+
+The schema maintains **100% backward compatibility** with Milestone 1 while adding structured metadata:
+
+```json
+{
+  "source_file": "sample.pdf",
+  "total_pages": 3,
+  "empty_pages": [3],
+  "has_empty_pages": true,
+  "backend_used": "pymupdf",
+  "fallback_occurred": false,
+  "fallback_reason": null,
+  "tables": [],
+  "pages": [
+    {
+      "page_number": 1,
+      "text": "Adaptive Multimodal Corrective RAG (AMCRAG)\nAbstract: ...",
+      "char_count": 312,
+      "is_empty": false,
+      "headings": ["Adaptive Multimodal Corrective RAG (AMCRAG)"],
+      "paragraphs": ["Abstract: Large Language Models frequently suffer..."],
+      "tables": []
+    }
+  ]
+}
+```
+
+#### Why this schema design?
+- **Existing consumers:** Teammates reading `page["text"]` or `page["page_number"]` experience zero breakage.
+- **Structured consumers:** Teammates needing table markdown (`tables[*].markdown`) or section titles (`headings`) can access them directly without regex hacks.
+- **Auditability:** `backend_used`, `fallback_occurred`, and `fallback_reason` explicitly document how the file was parsed.
 
 ---
-
-## 5. Output JSON Schemas
 
 ### Chunk Output Schema (`data/processed/<name>_chunks.json`)
 
@@ -94,24 +124,13 @@ Outputs: `data/processed/<name>_chunks.json`
     {
       "chunk_id": "sample_chunk_0001",
       "chunk_index": 0,
-      "chunk_text": "Adaptive Multimodal Corrective RAG (AMCRAG) Abstract: Large Language Models frequently suffer from hallucinations...",
+      "chunk_text": "Adaptive Multimodal Corrective RAG (AMCRAG)...",
       "source_file": "sample.pdf",
       "start_page": 1,
-      "end_page": 1,
-      "page_numbers": [1],
-      "char_count": 312,
-      "word_count": 42
-    },
-    {
-      "chunk_id": "sample_chunk_0002",
-      "chunk_index": 1,
-      "chunk_text": "Section 2: Document Ingestion Pipeline Person 1 is responsible for Document Processing...",
-      "source_file": "sample.pdf",
-      "start_page": 2,
       "end_page": 2,
-      "page_numbers": [2],
-      "char_count": 297,
-      "word_count": 39
+      "page_numbers": [1, 2],
+      "char_count": 495,
+      "word_count": 65
     }
   ]
 }
@@ -119,23 +138,23 @@ Outputs: `data/processed/<name>_chunks.json`
 
 ---
 
-## 6. Running Automated Tests
-
-Run the complete test suite verifying both extraction and chunking:
+## 5. Automated Tests
 
 ```bash
-# Run all tests
+# Run the entire test suite (33 tests)
 pytest -v
 
-# Run Milestone 1 extraction tests (15 tests)
+# Run Milestone 1 tests (15 extraction tests)
 pytest tests/test_extract_pdf.py -v
 
-# Run Milestone 2 chunking tests (11 tests)
+# Run Milestone 2 tests (11 chunking tests)
 pytest tests/test_chunk_text.py -v
+
+# Run Milestone 3 tests (7 Docling normalization & fallback tests)
+pytest tests/test_docling_extractor.py -v
 ```
 
 ---
 
-## 7. Upcoming Milestones
-- **Milestone 3:** Page image rendering at configurable DPI for teammate's ColPali visual retrieval module.
-- **Milestone 4:** Structured table & layout parsing with Docling.
+## 6. What's Next
+- **Milestone 4:** High-DPI page rendering to PNG images (`data/page_images/`) for downstream visual retrieval (ColPali).
