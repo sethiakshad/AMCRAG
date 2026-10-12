@@ -1,222 +1,96 @@
-# AMCRAG: Document Processing & Knowledge Base Preparation
+# AMCRAG - Milestone 1: Page-wise PDF Text Extraction
 
-> **Module Owner:** Person 1  
-> **Project:** Adaptive Multimodal Corrective RAG (AMCRAG) — B.Tech Research Project  
-> **Git Branch:** `feature/document-processing-and-knowledge-base`
-
----
-
-## 1. Overview & Responsibilities
-
-This module is the foundational data ingestion and preparation tier of **AMCRAG**. It processes incoming multi-page PDFs, performs resilient structured text and layout extraction, renders high-fidelity page images for visual late-interaction models, and partitions the document into traceable, citation-ready text chunks.
-
-### Core Responsibilities
-1. **PDF Ingestion & Deduplication:** Content-addressable SHA-256 identification preventing redundant processing of duplicate uploads.
-2. **Dual-Path Extraction with Fallback:** Primary extraction via IBM **Docling** for structured layouts and markdown tables; automatic fallback to high-speed **PyMuPDF (`fitz`)** if Docling is unavailable or fails.
-3. **Scanned PDF & OCR Detection:** Intelligent heuristics detecting image-only or low-text pages (`< 40` chars/page or `< 100` total chars). Never silently claims text was extracted when a scan is detected; instead flags `ocr_needed=True` and `is_scanned=True`.
-4. **ColPali Page Image Rendering:** Renders PDF pages to PNG at a configurable resolution (default `150 DPI`) for downstream visual retrieval.
-5. **Configurable Structure-Aware Chunking:** Paragraph- and sentence-boundary chunking with configurable `chunk_size` and `chunk_overlap`, preserving nearest section headings.
-6. **Provenance & Citation Preservation:** Binds document ID, page numbers, and human-readable citation strings (`Report.pdf, Page 2`) to every chunk for fine-grained verification in subsequent CRAG evaluation.
-7. **Downstream JSON Contracts:** Produces standardized JSON artifacts consumed by Person 2 (Dense & Sparse Indexing), Person 3 (ColPali Visual Indexing), and Person 4 (Adaptive Retrieval & Corrective Generation).
+> **Module:** Person 1 — Document Processing and Knowledge Base Preparation  
+> **Project:** AMCRAG (Adaptive Multimodal Corrective RAG)
 
 ---
 
-## 2. Project Directory Structure
+## 1. Overview
 
+This is the initial, foundational step of Person 1's module. It extracts text separately from every page of a PDF document using **PyMuPDF (`fitz`)**, preserves original page order, uses 1-based page numbering, and exports the clean text into a structured, UTF-8 encoded JSON format for downstream processing.
+
+### Key Capabilities
+- **Page-by-page extraction:** Text from each page is stored individually.
+- **1-based page numbering:** Page 1 corresponds to PDF page 1.
+- **Empty page detection:** Transparently flags pages with no extracted text or only whitespace (e.g., scanned images or blank pages) without inventing text or claiming OCR was performed.
+- **Resilient error handling:** Handles missing files, invalid formats, empty files, and password-protected PDFs with user-friendly messages.
+- **Structured UTF-8 JSON output:** Creates output directories on the fly and saves clean JSON files.
+
+---
+
+## 2. Setup
+
+### Prerequisites
+- Python 3.10+ (tested on Python 3.13)
+
+### Installation
+Install the minimal dependencies for this milestone:
+
+```bash
+pip install -r requirements.txt
 ```
-AMC RAG/
-├── app/
-│   ├── __init__.py
-│   ├── config.py                 # PipelineConfig (Pydantic Settings: chunk_size, overlap, DPI, thresholds)
-│   ├── schemas/
-│   │   ├── __init__.py
-│   │   ├── document.py           # DocumentMetadata, PageExtraction, ExtractedTable, PageRenderInfo
-│   │   └── chunk.py              # ChunkMetadata, DocumentChunk, ProcessedDocumentOutput contract
-│   ├── extractors/
-│   │   ├── __init__.py
-│   │   ├── base.py               # BaseExtractor abstract base class
-│   │   ├── pymupdf_extractor.py  # PyMuPDF fast extractor + table detection + scanned heuristics
-│   │   ├── docling_extractor.py  # Docling deep layout & table extractor
-│   │   └── fallback_extractor.py # Fallback orchestrator: Docling -> PyMuPDF + logging
-│   ├── chunking/
-│   │   ├── __init__.py
-│   │   └── text_chunker.py       # Sentence/clause-boundary chunker with citation formatting
-│   ├── services/
-│   │   ├── __init__.py
-│   │   ├── duplicate_detector.py # SHA-256 duplicate detection & ledger registry
-│   │   ├── page_renderer.py      # High-DPI PDF page rasterizer for ColPali
-│   │   └── pipeline.py           # End-to-end DocumentProcessingPipeline
-│   └── cli.py                    # Unified Command Line Interface
-├── data/
-│   ├── uploads/                  # Raw input PDF files
-│   ├── processed/                # Output JSON contracts (<document_id>.json, manifest.json)
-│   └── page_images/              # Rendered PNG images organized by <document_id>/page_XXX.png
-├── scripts/
-│   └── generate_sample_pdf.py    # Demonstration PDF generator
-├── tests/
-│   ├── __init__.py
-│   ├── conftest.py               # Fixtures generating synthetic clean, scanned, empty, and corrupted PDFs
-│   ├── test_schemas.py           # Pydantic schema serialization and contract validation tests
-│   ├── test_extractors.py        # Text extraction, scanned detection, and fallback tests
-│   ├── test_chunking.py          # Chunk size, overlap, citation, and metadata tests
-│   ├── test_rendering.py         # Page image rendering and DPI scaling tests
-│   └── test_pipeline.py          # End-to-end integration and duplicate detection tests
-├── requirements.txt
-├── .gitignore
-└── README.md
+
+*(Only `pymupdf>=1.24.0` is required for this milestone).*
+
+---
+
+## 3. How to Run
+
+### Example 1: Run on the included sample PDF
+A sample 3-page PDF is provided in `data/sample.pdf` (containing text on pages 1 and 2, and an intentionally blank page 3 to test empty page detection):
+
+```bash
+python extract_pdf.py data/sample.pdf
+```
+
+### Example 2: Run on your own PDF
+```bash
+python extract_pdf.py path/to/your_paper.pdf
+```
+
+### Example 3: Specify a custom output directory
+```bash
+python extract_pdf.py data/sample.pdf --output-dir my_output_folder
 ```
 
 ---
 
-## 3. End-to-End Processing Pipeline
+## 4. Output JSON Format
 
-```
-[ Uploaded PDF File ]
-          │
-          ▼
-┌───────────────────────────┐
-│ 1. Duplicate Detection    │──(If already processed & not forced)──► Return Cached Output
-│    (SHA-256 Checksum)     │
-└─────────────┬─────────────┘
-              ▼
-┌───────────────────────────┐
-│ 2. Resilient Extraction   │
-│    - Try Docling          │──(On Error / Unavailable)──► Fallback to PyMuPDF
-│    - Scanned/OCR Check    │                             (Logs warning & marks method)
-└─────────────┬─────────────┘
-              ├─────────────────────────────────────────┐
-              ▼                                         ▼
-┌───────────────────────────┐             ┌───────────────────────────┐
-│ 3. ColPali Page Rendering │             │ 4. Structure Chunking     │
-│    - Rasterize to PNG     │             │    - Sentence-aware split │
-│    - Configurable DPI     │             │    - Heading preservation │
-│    - data/page_images/    │             │    - Page citation tags   │
-└─────────────┬─────────────┘             └─────────────┬─────────────┘
-              └────────────────────┬────────────────────┘
-                                   ▼
-              ┌─────────────────────────────────────────┐
-              │ 5. Assemble ProcessedDocumentOutput     │
-              │    - Save JSON to data/processed/       │
-              │    - Update processed_manifest.json     │
-              └─────────────────────────────────────────┘
-```
-
----
-
-## 4. Shared Data Contract (Downstream Interface)
-
-Downstream modules read `data/processed/{document_id}.json`. The schema is defined in [`app/schemas/chunk.py`](file:///e:/AMC%20RAG/app/schemas/chunk.py):
+Output files are saved to `data/processed/<filename>_extracted.json`:
 
 ```json
 {
-  "document_id": "doc_e3ed70ac823e5514",
-  "document_name": "sample_amcrag_overview.pdf",
-  "metadata": {
-    "document_id": "doc_e3ed70ac823e5514",
-    "document_name": "sample_amcrag_overview.pdf",
-    "file_path": "E:\\AMC RAG\\data\\uploads\\sample_amcrag_overview.pdf",
-    "file_size_bytes": 2589,
-    "page_count": 2,
-    "upload_timestamp": "2026-10-12T17:50:53.908548+00:00",
-    "content_hash": "e3ed70ac823e55142efaef1486f7f18d365f7ee90952d9682a4e633f8f7b8138"
-  },
-  "status": "success",
-  "is_scanned": false,
-  "ocr_needed": false,
-  "extraction_method": "pymupdf",
-  "rendered_pages": [
+  "source_file": "sample.pdf",
+  "total_pages": 3,
+  "empty_pages": [3],
+  "has_empty_pages": true,
+  "pages": [
     {
       "page_number": 1,
-      "image_path": "E:\\AMC RAG\\data\\page_images\\doc_e3ed70ac823e5514\\page_001.png",
-      "width": 1240,
-      "height": 1755,
-      "dpi": 150
-    }
-  ],
-  "chunks": [
+      "text": "Adaptive Multimodal Corrective RAG (AMCRAG)\nAbstract: ...",
+      "char_count": 272,
+      "is_empty": false
+    },
     {
-      "chunk_id": "doc_e3ed70ac823e5514_c0000",
-      "chunk_text": "AMCRAG: Adaptive Multimodal Corrective RAG...",
-      "metadata": {
-        "document_id": "doc_e3ed70ac823e5514",
-        "document_name": "sample_amcrag_overview.pdf",
-        "page_numbers": [1],
-        "chunk_id": "doc_e3ed70ac823e5514_c0000",
-        "chunk_index": 0,
-        "section_heading": "AMCRAG: Adaptive Multimodal Corrective RAG",
-        "extraction_method": "pymupdf",
-        "source_citation": "sample_amcrag_overview.pdf, Page 1",
-        "char_count": 543,
-        "token_estimate": 135
-      }
+      "page_number": 2,
+      "text": "Section 2: Document Ingestion Pipeline\nPerson 1 is responsible...",
+      "char_count": 258,
+      "is_empty": false
+    },
+    {
+      "page_number": 3,
+      "text": "",
+      "char_count": 0,
+      "is_empty": true
     }
-  ],
-  "total_chunks": 2,
-  "tables": [],
-  "warnings": [],
-  "error_message": null
+  ]
 }
 ```
 
-### Team Member Integration Points
-- **Person 2 (Dense & Sparse Indexing):** Consumes `chunks[*].chunk_text` and `chunks[*].metadata` for Qdrant vector embeddings and BM25 sparse index.
-- **Person 3 (ColPali Visual Indexing):** Consumes `rendered_pages[*].image_path` to index document pages with multi-vector vision encoders.
-- **Person 4 (Adaptive Retrieval, CRAG & Citations):** Consumes `chunks[*].metadata.source_citation` and `page_numbers` to generate grounded answer citations.
-
 ---
 
-## 5. Dependencies & Installation
-
-### Requirements
-- Python 3.10 to 3.13
-- Core dependencies: `pymupdf`, `pydantic`, `pydantic-settings`, `pillow`, `pytest`
-- Optional deep layout parsing: `docling`
-
-### Installation Commands
-```bash
-# Clone and checkout branch
-git checkout feature/document-processing-and-knowledge-base
-
-# Core setup (PyMuPDF + Pydantic + Pytest)
-pip install -r requirements.txt
-
-# (Optional) For Docling deep-learning based layout models:
-pip install docling
-```
-
----
-
-## 6. How to Run & Verify
-
-### 1. Run Unit & Integration Tests
-Execute the comprehensive test suite (all 19 tests verifying chunking, extractors, scanned detection, fallback, and rendering):
-```bash
-pytest -v
-```
-
-### 2. Generate a Demonstration PDF
-```bash
-python scripts/generate_sample_pdf.py
-```
-
-### 3. Process a PDF via CLI
-Process a single document:
-```bash
-python -m app.cli --file data/uploads/sample_amcrag_overview.pdf
-```
-
-Process with custom chunk size, overlap, and rendering DPI:
-```bash
-python -m app.cli --file data/uploads/sample_amcrag_overview.pdf --chunk-size 500 --chunk-overlap 100 --dpi 200 --force
-```
-
-Batch process all PDFs inside a directory:
-```bash
-python -m app.cli --dir data/uploads
-```
-
-### 4. Verification Checklist
-- [x] **Extracted Text & Metadata:** Inspect `data/processed/<document_id>.json` to verify `chunks` contain text and metadata (`document_id`, `chunk_id`, `page_numbers`, `source_citation`, `section_heading`, `extraction_method`).
-- [x] **Rendered Page Images:** Check `data/page_images/<document_id>/` for rendered `page_001.png`, `page_002.png` at configured DPI.
-- [x] **Duplicate Detection:** Re-running the CLI on the same file displays `STATUS: duplicate_skipped`.
-- [x] **Scanned Document Detection:** Processing a scanned image PDF logs a warning and marks `is_scanned=True` and `ocr_needed=True` without silently falsifying extraction.
+## 5. What's Next (Upcoming Milestones)
+- **Milestone 2:** Page image rendering at configurable DPI for teammate's ColPali visual retrieval module.
+- **Milestone 3:** Sentence-aware text chunking with chunk overlap and page-level citation metadata.
+- **Milestone 4:** Structured table & layout parsing with Docling.
