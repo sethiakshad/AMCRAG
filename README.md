@@ -53,6 +53,17 @@ python extract_pdf.py path/to/your_paper.pdf
 python extract_pdf.py data/sample.pdf --output-dir my_output_folder
 ```
 
+### Example 4: Overwrite an existing output JSON file
+If a file has already been extracted to `data/processed/<name>_extracted.json`, prevent accidental overwrites by default. Use `--overwrite` to replace it:
+```bash
+python extract_pdf.py data/sample.pdf --overwrite
+```
+
+### Running the Test Suite
+```bash
+pytest tests/test_extract_pdf.py -v
+```
+
 ---
 
 ## 4. Output JSON Format

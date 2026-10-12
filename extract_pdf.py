@@ -31,6 +31,9 @@ def extract_page_text(pdf_path: Path) -> Dict[str, Any]:
         FileNotFoundError: If the specified PDF file does not exist.
         ValueError: If the file is not a valid or readable PDF.
     """
+    if not str(pdf_path).strip():
+        raise ValueError("PDF file path cannot be empty.")
+
     if not pdf_path.exists():
         raise FileNotFoundError(f"File not found: '{pdf_path.resolve()}'")
 
@@ -59,6 +62,9 @@ def extract_page_text(pdf_path: Path) -> Dict[str, Any]:
             )
 
         total_pages = len(doc)
+        if total_pages == 0:
+            raise ValueError(f"PDF '{pdf_path.name}' contains 0 pages.")
+
         pages_data: List[Dict[str, Any]] = []
         empty_pages: List[int] = []
 
@@ -71,7 +77,8 @@ def extract_page_text(pdf_path: Path) -> Dict[str, Any]:
             raw_text = page.get_text("text")
             cleaned_text = raw_text.strip()
 
-            is_empty = len(cleaned_text) == 0
+            # Check if text is empty or contains only whitespace / zero-width spaces
+            is_empty = len(cleaned_text) == 0 or len(cleaned_text.replace("\u200b", "").strip()) == 0
 
             if is_empty:
                 empty_pages.append(page_number)
@@ -99,7 +106,11 @@ def extract_page_text(pdf_path: Path) -> Dict[str, Any]:
         doc.close()
 
 
-def save_json_output(data: Dict[str, Any], output_path: Path) -> Path:
+def save_json_output(
+    data: Dict[str, Any],
+    output_path: Path,
+    overwrite: bool = False,
+) -> Path:
     """Save extracted document data to a UTF-8 JSON file.
 
     Creates the parent directory if it does not exist.
@@ -107,10 +118,20 @@ def save_json_output(data: Dict[str, Any], output_path: Path) -> Path:
     Args:
         data: The dictionary of extracted pages and metadata.
         output_path: Destination path for the JSON file.
+        overwrite: Whether to overwrite an existing destination file. Defaults to False.
 
     Returns:
         The resolved Path of the saved file.
+
+    Raises:
+        FileExistsError: If output_path already exists and overwrite is False.
     """
+    if output_path.exists() and not overwrite:
+        raise FileExistsError(
+            f"Output file already exists: '{output_path.resolve()}'. "
+            "Pass '--overwrite' to allow replacing existing files."
+        )
+
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8") as json_file:
         json.dump(data, json_file, indent=2, ensure_ascii=False)
@@ -134,6 +155,11 @@ def parse_arguments() -> argparse.Namespace:
         default=Path("data/processed"),
         help="Directory where JSON output will be saved (default: data/processed)",
     )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Overwrite destination JSON file if it already exists",
+    )
     return parser.parse_args()
 
 
@@ -152,9 +178,14 @@ def main() -> None:
         # Step 2: Determine output JSON filename (<pdf_stem>_extracted.json)
         output_filename = f"{input_pdf.stem}_extracted.json"
         destination_file = output_directory / output_filename
+        was_overwritten = destination_file.exists()
 
         # Step 3: Save UTF-8 JSON file
-        saved_path = save_json_output(extraction_result, destination_file)
+        saved_path = save_json_output(
+            extraction_result,
+            destination_file,
+            overwrite=args.overwrite,
+        )
 
         # Step 4: Display clear summary report
         total_pages = extraction_result["total_pages"]
@@ -165,7 +196,8 @@ def main() -> None:
         print("=" * 55)
         print(f" Source File : {extraction_result['source_file']}")
         print(f" Total Pages : {total_pages}")
-        print(f" Output JSON : {saved_path.resolve()}")
+        overwrite_note = " (Overwrote existing file)" if was_overwritten else ""
+        print(f" Output JSON : {saved_path.resolve()}{overwrite_note}")
         print("-" * 55)
 
         for page in extraction_result["pages"]:
@@ -179,6 +211,9 @@ def main() -> None:
             print("     (Scanned PDF OCR is handled in a separate upcoming module).")
         print("=" * 55 + "\n")
 
+    except FileExistsError as err:
+        print(f"\n[Error] {err}", file=sys.stderr)
+        sys.exit(1)
     except FileNotFoundError as err:
         print(f"\n[Error] {err}", file=sys.stderr)
         sys.exit(1)
