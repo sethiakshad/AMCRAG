@@ -206,3 +206,32 @@ class TestCRAGControllerIntegration:
         assert result.can_proceed_to_generation is False
         assert result.insufficient_evidence is True
         assert result.decision.needs_correction is False
+
+
+class TestT5CRAGEvaluator:
+    def test_evaluator_initialization(self):
+        from app.crag.evaluator import T5CRAGEvaluator
+        evaluator = T5CRAGEvaluator(device="cpu")
+        assert evaluator.model_path_or_id == "Mindie/CRAG-Evaluator"
+        assert evaluator.device == "cpu"
+        assert evaluator._is_loaded is False
+
+    def test_evaluator_custom_path(self):
+        from app.crag.evaluator import T5CRAGEvaluator
+        evaluator = T5CRAGEvaluator(model_path_or_id="local/husky_crag_checkpoint")
+        assert evaluator.model_path_or_id == "local/husky_crag_checkpoint"
+
+    def test_evaluator_fallback_evaluation(self, sample_text_candidate, monkeypatch):
+        from app.crag.evaluator import T5CRAGEvaluator
+
+        def mock_load_error():
+            raise OSError("Offline or checkpoint not yet downloaded")
+
+        evaluator = T5CRAGEvaluator(model_path_or_id="mock/non_existent_path", fallback_on_error=True)
+        monkeypatch.setattr(evaluator, "load_model", mock_load_error)
+
+        evals = evaluator.evaluate_batch("What was the revenue?", [sample_text_candidate])
+        assert len(evals) == 1
+        assert evals[0].candidate_id == "cand_chunk_001"
+        assert evals[0].relevance_score > 0.0
+
