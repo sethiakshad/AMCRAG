@@ -138,18 +138,42 @@ def chunk_extracted_document(
         )
         heading = page_to_heading.get(start_page)
 
+        source_filename = Path(source_file).name
         chunk_record: Dict[str, Any] = {
             "chunk_id": chunk_id,
             "chunk_index": chunk_seq - 1,
-            "chunk_text": chunk_text,
+            "document_id": file_stem,
+            "document_name": source_filename,
             "source_file": source_file,
+            "source_filename": source_filename,
+            "page_number": start_page,
             "start_page": start_page,
             "end_page": end_page,
+            "page_start": start_page,
+            "page_end": end_page,
             "page_numbers": unique_pages,
+            "text": chunk_text,
+            "chunk_text": chunk_text,
             "source_citation": citation,
             "section_heading": heading,
             "char_count": len(chunk_text),
             "word_count": len(current_words),
+            "metadata": {
+                "section": heading or "General",
+                "headings": [heading] if heading else [],
+                "section_heading": heading,
+                "document_id": file_stem,
+                "document_name": source_filename,
+                "source_filename": source_filename,
+                "page_number": start_page,
+                "page_start": start_page,
+                "page_end": end_page,
+                "page_numbers": unique_pages,
+                "source_citation": citation,
+                "char_count": len(chunk_text),
+                "word_count": len(current_words),
+                "table": False,
+            },
         }
         chunks.append(chunk_record)
         chunk_seq += 1

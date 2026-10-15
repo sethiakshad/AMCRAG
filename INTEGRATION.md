@@ -2,213 +2,217 @@
 
 > **Author:** Person 1 (Document Processing and Knowledge Base Preparation)  
 > **Project:** AMCRAG (Adaptive Multimodal Corrective RAG) — B.Tech Research Project  
-> **Target Audience:** Person 2 (Dense/Sparse Indexing), Person 3 (ColPali Visual Indexing), Person 4 (Retrieval & CRAG Evaluation), and Person 5 (Orchestration & API)
+> **Target Audience:** Person 2 (Dense & Sparse Hybrid Retrieval Subsystem), Person 3 (ColPali Visual Retrieval & Reranker), Person 4 (CRAG Evaluator & Citations), and Person 5 (FastAPI Orchestrator)
 
 ---
 
-## 1. Module Deliverables & Directory Layout
+## 1. Executive Architecture Role & Subsystem Interfaces
 
-Person 1's module ingests PDF research papers and produces **four distinct types of artifacts**:
+Person 1 is responsible for **Document Ingestion, Text Extraction, Layout Normalization, Chunking, and Visual Page Rendering**. It serves as the upstream foundation for the entire AMCRAG pipeline:
 
-| Artifact Category | Primary File Location | Format | Intended Consumer |
+```
+[ PDF Upload / Ingestion ]
+            │
+            ▼
+┌───────────────────────────────────────────┐
+│ Person 1: Document Processing             │
+│ • PyMuPDF / IBM Docling Text Extraction   │
+│ • Sentence-Bounded Sliding Window Chunker │
+│ • 150 DPI Visual Page Rasterizer          │
+└─────┬───────────────────────────────┬─────┘
+      │                               │
+      │ list[DocumentChunk]           │ Rendered Images (.png)
+      ▼ (Plug 1)                      ▼ & Manifest (.json)
+┌──────────────────────────┐    ┌──────────────────────────┐
+│ Person 2: Hybrid Text    │    │ Person 3: ColPali        │
+│ Retriever                │    │ Visual Retrieval         │
+│ • Qdrant Dense (BGE-base)│    │ • Multi-vector embeddings│
+│ • BM25Okapi Sparse Index │    │ • Layout/Chart Retrieval │
+└─────────────┬────────────┘    └────────────┬─────────────┘
+              │                              │
+              │ dense & sparse candidates    │ visual candidates
+              └──────────────┬───────────────┘
+                             ▼
+              ┌─────────────────────────────┐
+              │ Person 2: RRF Fusion Engine │
+              │ • Reciprocal Rank (k=60)    │
+              └──────────────┬──────────────┘
+                             ▼ list[RetrievalResult / RetrievalCandidate]
+              ┌─────────────────────────────┐
+              │ Person 4: CRAG Evaluator    │
+              │ • Mindie/T5-Large Quality   │
+              │ • Source-Page Citations     │
+              └─────────────────────────────┘
+```
+
+---
+
+## 2. Universal Schema Contracts (`schemas.py`)
+
+All AMCRAG modules share common Pydantic v2 schemas defined in [`schemas.py`](file:///e:/AMC%20RAG/schemas.py) and [`app/schemas/`](file:///e:/AMC%20RAG/app/schemas/):
+
+| Schema Name | Primary Location | Consumed By | Purpose |
 |---|---|---|---|
-| **1. Page-wise Extracted Text** | `data/processed/<name>_extracted.json` | JSON (UTF-8) | Person 4, Person 5 |
-| **2. Text Chunks & Metadata** | `data/processed/<name>_chunks.json` | JSON (UTF-8) | **Person 2 (BGE & BM25)**, Person 4 |
-| **3. Structured Elements** | Embedded in `_extracted.json` (`tables`, `headings`) | Markdown / JSON | Person 2, Person 4 |
-| **4. Rendered Page Images** | `data/page_images/<name>/<name>_page_XXXX.png` | Lossless PNG (150 DPI) | **Person 3 (ColPali)** |
-| **5. Visual Manifest** | `data/page_images/<name>/<name>_manifest.json` | JSON (UTF-8) | **Person 3 (ColPali)**, Person 4 |
-
-```
-AMC RAG/
-├── data/
-│   ├── uploads/                              # Place raw PDF papers here
-│   │   └── sample.pdf
-│   ├── processed/                            # JSON metadata and text outputs
-│   │   ├── sample_extracted.json             # Page-by-page text & structure
-│   │   └── sample_chunks.json                # Sliding-window chunks with page citations
-│   └── page_images/                          # High-DPI rendered page images
-│       └── sample/
-│           ├── sample_page_0001.png
-│           ├── sample_page_0002.png
-│           ├── sample_page_0003.png
-│           └── sample_manifest.json          # Index of images, DPI, and dimensions
-```
+| `DocumentChunk` | [`schemas.py`](file:///e:/AMC%20RAG/schemas.py) / [`app.schemas`](file:///e:/AMC%20RAG/app/schemas/chunk.py) | **Person 2 (Plug 1)** | Universal text chunk contract with 1-indexed page provenance, text, and layout metadata. |
+| `ChunkMetadata` | [`schemas.py`](file:///e:/AMC%20RAG/schemas.py) / [`app.schemas`](file:///e:/AMC%20RAG/app/schemas/chunk.py) | Person 2, Person 4 | Preserves section headings, citations, character counts, and bounding boxes. |
+| `PageRenderInfo` | [`schemas.py`](file:///e:/AMC%20RAG/schemas.py) / [`app.schemas`](file:///e:/AMC%20RAG/app/schemas/document.py) | **Person 3 (ColPali)**, Person 4 | Rendered page image paths, resolutions, DPI, and fallback captions/titles. |
+| `ProcessedDocumentOutput` | [`schemas.py`](file:///e:/AMC%20RAG/schemas.py) / [`app.schemas`](file:///e:/AMC%20RAG/app/schemas/chunk.py) | Person 5 (FastAPI) | Complete structured JSON ledger emitted at `data/processed/{doc_id}.json`. |
+| `ScoredCandidate` | [`schemas.py`](file:///e:/AMC%20RAG/schemas.py) | Person 2, Person 3 | Single-channel scored passage candidate representation. |
+| `RetrievalResult` | [`schemas.py`](file:///e:/AMC%20RAG/schemas.py) | Person 3, Person 4, Person 5 | RRF-fused candidate aliased as `RetrievalCandidate` (Section 10.1). |
 
 ---
 
-## 2. Distinction Between Artifacts
+## 3. Teammate Integration Guide
 
-To prevent confusion across team modules, each artifact serves a distinct purpose:
-- **Extracted Text (`_extracted.json`):** Full, un-chunked text preserved exactly page-by-page. Contains 1-based `page_number`, `char_count`, `is_empty`, and optional Docling `headings`, `paragraphs`, and `tables`.
-- **Text Chunks (`_chunks.json`):** Word-bounded sliding-window segments (`chunk_size=500`, `chunk_overlap=100`) designed specifically for embedding token budgets and lexical search engines.
-- **Structured Elements (`tables`):** Clean markdown tables extracted from document pages (`| Col1 | Col2 |`), enabling tabular reasoning without layout destruction.
-- **Rendered Images (`.png`):** High-fidelity visual rasterizations at 150 DPI. Used by multimodal vision encoders (ColPali) to "see" diagrams, formulas, charts, and font formatting.
+### A. For Person 2: Dense & Sparse Text Retrieval Subsystem (Om Khapekar)
 
----
+Person 2 indexes text chunks ingested by Person 1 into Qdrant (`BAAI/bge-base-en-v1.5`) and BM25Okapi.
 
-## 3. Integration Guide by Teammate
+#### Plug 1: Ingestion via `index_knowledge_base()`
+Person 1 chunks can be passed directly to Person 2's retriever:
 
-### For Person 2: Dense & Sparse Indexing (BGE, BM25, Qdrant)
+```python
+from schemas import DocumentChunk
+from app.services.pipeline import DocumentProcessingPipeline
+from hybrid_retriever import HybridTextRetriever
 
-**Consume file:** `data/processed/<name>_chunks.json`
+# 1. Ingest and chunk PDF document via Person 1
+pipeline = DocumentProcessingPipeline()
+output = pipeline.process_file("data/uploads/annual_report_2025.pdf")
 
-Each chunk in `chunks` provides all required vector payloads and metadata for dense and sparse indexing:
+# 2. Hand off chunks directly to Person 2
+retriever = HybridTextRetriever()
+retriever.index_knowledge_base(chunks=output.chunks)
+# or using helper method:
+# retriever.index_knowledge_base(chunks=output.to_retriever_chunks())
+```
 
+#### Reading Chunks from Disk (`data/processed/<name>_chunks.json`):
 ```python
 import json
 from pathlib import Path
+from schemas import DocumentChunk
+from hybrid_retriever import HybridTextRetriever
 
-# Load chunks produced by Person 1
-chunks_file = Path("data/processed/sample_chunks.json")
-with chunks_file.open("r", encoding="utf-8") as f:
-    chunk_payload = json.load(f)
+with open("data/processed/sample_chunks.json", "r", encoding="utf-8") as f:
+    data = json.load(f)
 
-for chunk in chunk_payload["chunks"]:
-    chunk_id = chunk["chunk_id"]            # Unique stable ID, e.g. "sample_chunk_0001"
-    text_to_embed = chunk["chunk_text"]      # Clean text bounded to chunk_size
+# Deserialize directly into Person 2 DocumentChunk instances
+chunks = [DocumentChunk(**item) for item in data["chunks"]]
 
-    # Qdrant payload metadata
-    payload = {
-        "chunk_id": chunk_id,
-        "source_file": chunk["source_file"],
-        "start_page": chunk["start_page"],
-        "end_page": chunk["end_page"],
-        "page_numbers": chunk["page_numbers"],
-        "source_citation": chunk["source_citation"],   # e.g. "sample.pdf, Pages 1-2"
-        "section_heading": chunk.get("section_heading"), # e.g. "Abstract"
-        "char_count": chunk["char_count"],
-        "word_count": chunk["word_count"],
-    }
-
-    # Person 2: Generate embedding and upsert to Qdrant / BM25
-    # dense_vector = bge_embedder.encode(text_to_embed)
-    # qdrant_client.upsert(collection_name="amcrag_dense", points=[...])
-    # bm25_index.add_document(doc_id=chunk_id, text=text_to_embed)
+retriever = HybridTextRetriever()
+retriever.index_knowledge_base(chunks=chunks)
 ```
+
+#### Guarantees Provided by Person 1 to Person 2:
+1. **Deterministic Fields:** `chunk.chunk_id`, `chunk.document_id`, `chunk.page_number` (1-indexed), `chunk.text`, `chunk.source_filename`, `chunk.page_start`, and `chunk.page_end` are always populated.
+2. **Deterministic UUIDv5 Compatibility:** `chunk_id` strings (e.g. `doc_abc123_c0001` or `sample_chunk_0001`) are stable across pipeline reruns.
+3. **Payload Preservation:** `chunk.metadata` preserves `"section"`, `"headings"`, `"table"`, `"source_citation"`, and `"char_count"` verbatim.
+4. **Backward-Compatibility:** `chunk.chunk_text` and `chunk.document_name` remain accessible as properties.
 
 ---
 
-### For Person 3: Multimodal Visual Retrieval (ColPali)
+### B. For Person 3: Multimodal Visual Retrieval & Reranker (ColPali)
 
-**Consume file:** `data/page_images/<name>/<name>_manifest.json`
+**Consume manifest:** `data/page_images/<stem>/<stem>_manifest.json`
 
-Person 3 does **not** need to parse PDFs. Read the manifest to get pre-rendered image paths at 150 DPI:
+Person 3 does **not** need to open or parse PDFs. Person 1 pre-renders all pages at 150 DPI with memory-efficient pixmap streaming:
 
 ```python
 import json
 from pathlib import Path
 from PIL import Image
 
-manifest_file = Path("data/page_images/sample/sample_manifest.json")
-with manifest_file.open("r", encoding="utf-8") as f:
+manifest_path = Path("data/page_images/sample/sample_manifest.json")
+with manifest_path.open("r", encoding="utf-8") as f:
     manifest = json.load(f)
 
-print(f"Indexing document: {manifest['source_file']} ({manifest['total_pages']} pages)")
+print(f"Document: {manifest['source_filename']} ({manifest['total_pages']} pages)")
 
-for page in manifest["pages"]:
-    page_number = page["page_number"]   # 1-based page index
-    image_path = page["image_path"]       # Absolute path to rendered PNG
-    width, height = page["width"], page["height"]
-    dpi = page["dpi"]
+for page_info in manifest["pages"]:
+    page_num = page_info["page_number"]    # 1-indexed page number
+    img_path = page_info["image_path"]      # Absolute path to PNG
+    width, height = page_info["width"], page_info["height"]
+    title = page_info.get("title")          # Descriptive fallback for CRAG
+    caption = page_info.get("caption")
 
-    # Load image directly into PIL
-    page_image = Image.open(image_path)
+    # Load PIL image for ColPali vision encoder
+    page_image = Image.open(img_path)
 
-    # Person 3: Pass image into ColPali multi-vector vision encoder
+    # Person 3: Generate visual multi-vector embedding and upsert to Qdrant visual collection
     # visual_embedding = colpali_model.process_images([page_image])
-    # qdrant_client.upsert_visual(page_number=page_number, embedding=visual_embedding)
+    # qdrant_client.upsert(collection_name="colpali_pages", points=[...])
 ```
 
 ---
 
-### For Person 4: Retrieval, Corrective Loop (CRAG) & Final Citations
+### C. For Person 4: Adaptive Corrective Retrieval (CRAG) & Citations
 
-**Consume files:** `data/processed/<name>_chunks.json` and `data/page_images/<name>/<name>_manifest.json`
+Person 4's `CRAGController` evaluates retrieved candidates before answer generation:
 
-Person 4 uses chunk metadata to attribute facts to exact page numbers in final answers, and uses page images for visual cross-verification:
-
-```python
-# Formatting verified citations in LLM responses:
-def format_rag_citation(chunk_record: dict) -> str:
-    """Format citation tag for final synthesized answer."""
-    return f"[{chunk_record['source_citation']}]"
-    # Example output: "[sample.pdf, Page 1]" or "[sample.pdf, Pages 1-2]"
-```
+1. **Page Provenance for Answers:**
+   Every chunk carries `source_citation` (e.g. `report.pdf, Pages 2-3`), enabling LLM prompts to cite the exact source pages.
+2. **Visual Candidate Fallback Content:**
+   In accordance with Section 7 of Person 4's integration guide, visual pages without OCR text expose `title` and `caption` via `result.get_evaluable_content()`, enabling T5-Large to score visual pages without runtime OCR.
+3. **Property Aliases Supported:**
+   - `candidate.candidate_id` $\rightarrow$ maps to `chunk_id`
+   - `candidate.candidate_type` $\rightarrow$ `"visual_page"` or `"text_chunk"`
+   - `candidate.retrieval_score` $\rightarrow$ maps to `fused_score`
 
 ---
 
-### For Person 5: Orchestration & End-to-End Execution
+### D. For Person 5: FastAPI Orchestrator
 
-Person 5 can trigger Person 1's pipeline via command line or Python functions:
+Initialize the ingestion and retrieval subsystems during FastAPI startup:
 
-#### Programmatic Python Pipeline:
 ```python
+from fastapi import FastAPI, UploadFile, File
 from pathlib import Path
-from extract_pdf import extract_page_text, save_json_output
-from chunk_text import chunk_extracted_document, save_chunk_output
-from render_pdf_pages import render_pdf_pages
+import shutil
 
-pdf_path = Path("data/uploads/research_paper.pdf")
+from app.services.pipeline import DocumentProcessingPipeline
+from app.services.retrieval_bridge import index_document_chunks
+from hybrid_retriever import HybridTextRetriever
 
-# 1. Extract text page-by-page
-extraction = extract_page_text(pdf_path)
-save_json_output(extraction, Path("data/processed/research_paper_extracted.json"), overwrite=True)
+app = FastAPI(title="AMCRAG API")
 
-# 2. Chunk text with page provenance
-chunks = chunk_extracted_document(extraction, chunk_size=500, chunk_overlap=100)
-save_chunk_output(chunks, Path("data/processed/research_paper_chunks.json"), overwrite=True)
+pipeline = DocumentProcessingPipeline()
+retriever = HybridTextRetriever()
 
-# 3. Render page images for ColPali
-manifest = render_pdf_pages(pdf_path, dpi=150, overwrite=True)
-print(f"Rendered {manifest['total_rendered_images']} images to {manifest['output_directory']}")
+@app.post("/ingest")
+async def ingest_pdf(file: UploadFile = File(...)):
+    # Save upload
+    dest = Path("data/uploads") / file.filename
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    with dest.open("wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    # 1. Person 1: Extract, Chunk, Render
+    output = pipeline.process_file(dest)
+
+    # 2. Person 2: Index into Qdrant & BM25
+    indexed_count = retriever.index_knowledge_base(chunks=output.chunks)
+
+    return {
+        "status": output.status,
+        "document_id": output.document_id,
+        "total_chunks": output.total_chunks,
+        "indexed_chunks": indexed_count,
+        "is_scanned": output.is_scanned,
+        "ocr_needed": output.ocr_needed,
+        "rendered_pages": len(output.rendered_pages),
+    }
 ```
 
 ---
 
-## 4. Output Schemas with Realistic Examples
+## 4. Realistic Output Schema Examples
 
-### A. Extraction Schema (`data/processed/sample_extracted.json`)
+### A. Chunks Output (`data/processed/sample_chunks.json`)
 ```json
 {
   "source_file": "sample.pdf",
-  "total_pages": 3,
-  "empty_pages": [3],
-  "has_empty_pages": true,
-  "backend_used": "pymupdf",
-  "fallback_occurred": false,
-  "fallback_reason": null,
-  "tables": [],
-  "pages": [
-    {
-      "page_number": 1,
-      "text": "Adaptive Multimodal Corrective RAG (AMCRAG)\nAbstract: Large Language Models frequently suffer from hallucinations when reasoning over complex documents. In this paper, we propose AMCRAG...",
-      "char_count": 312,
-      "is_empty": false,
-      "headings": [
-        "Adaptive Multimodal Corrective RAG (AMCRAG)"
-      ],
-      "paragraphs": [
-        "Abstract: Large Language Models frequently suffer from hallucinations..."
-      ],
-      "tables": []
-    },
-    {
-      "page_number": 3,
-      "text": "",
-      "char_count": 0,
-      "is_empty": true,
-      "headings": [],
-      "paragraphs": [],
-      "tables": []
-    }
-  ]
-}
-```
-
-### B. Chunks Schema (`data/processed/sample_chunks.json`)
-```json
-{
-  "source_file": "sample.pdf",
+  "source_filename": "sample.pdf",
   "total_pages": 3,
   "chunk_size": 500,
   "chunk_overlap": 100,
@@ -217,24 +221,49 @@ print(f"Rendered {manifest['total_rendered_images']} images to {manifest['output
     {
       "chunk_id": "sample_chunk_0001",
       "chunk_index": 0,
-      "chunk_text": "Adaptive Multimodal Corrective RAG (AMCRAG) Abstract: Large Language Models frequently suffer from hallucinations when reasoning over complex documents. In this paper, we propose AMCRAG, combining dense semantic search, sparse lexical retrieval, and ColPali visual embeddings with a corrective verification loop. Section 2: Document Ingestion Pipeline Person 1 is responsible for Document Processing and Knowledge Base Preparation. The module extracts page-wise text using PyMuPDF, prepares page",
+      "document_id": "sample",
+      "document_name": "sample.pdf",
       "source_file": "sample.pdf",
+      "source_filename": "sample.pdf",
+      "page_number": 1,
       "start_page": 1,
       "end_page": 2,
+      "page_start": 1,
+      "page_end": 2,
       "page_numbers": [1, 2],
+      "text": "Adaptive Multimodal Corrective RAG (AMCRAG) Abstract: Large Language Models frequently suffer from hallucinations when reasoning over complex documents...",
+      "chunk_text": "Adaptive Multimodal Corrective RAG (AMCRAG) Abstract: Large Language Models frequently suffer from hallucinations when reasoning over complex documents...",
       "source_citation": "sample.pdf, Pages 1-2",
       "section_heading": "Adaptive Multimodal Corrective RAG (AMCRAG)",
       "char_count": 495,
-      "word_count": 65
+      "word_count": 65,
+      "metadata": {
+        "section": "Adaptive Multimodal Corrective RAG (AMCRAG)",
+        "headings": ["Adaptive Multimodal Corrective RAG (AMCRAG)"],
+        "section_heading": "Adaptive Multimodal Corrective RAG (AMCRAG)",
+        "document_id": "sample",
+        "document_name": "sample.pdf",
+        "source_filename": "sample.pdf",
+        "page_number": 1,
+        "page_start": 1,
+        "page_end": 2,
+        "page_numbers": [1, 2],
+        "source_citation": "sample.pdf, Pages 1-2",
+        "char_count": 495,
+        "word_count": 65,
+        "table": false
+      }
     }
   ]
 }
 ```
 
-### C. Visual Manifest Schema (`data/page_images/sample/sample_manifest.json`)
+### B. Visual Manifest Output (`data/page_images/sample/sample_manifest.json`)
 ```json
 {
   "source_file": "sample.pdf",
+  "source_filename": "sample.pdf",
+  "document_id": "sample",
   "total_pages": 3,
   "render_settings": {
     "dpi": 150,
@@ -249,7 +278,9 @@ print(f"Rendered {manifest['total_rendered_images']} images to {manifest['output
       "image_path": "E:\\AMC RAG\\data\\page_images\\sample\\sample_page_0001.png",
       "width": 1240,
       "height": 1755,
-      "dpi": 150
+      "dpi": 150,
+      "title": "sample.pdf - Page 1",
+      "caption": "Rendered visual representation of sample.pdf (Page 1)"
     }
   ]
 }
@@ -259,41 +290,36 @@ print(f"Rendered {manifest['total_rendered_images']} images to {manifest['output
 
 ## 5. Known Limitations & OCR Requirements
 
-1. **Scanned / Image-Only PDFs:**
-   - When a research paper contains scanned raster images without a digital text stream, PyMuPDF extracts 0 characters.
-   - **Behavior:** The module flags `is_empty: true` and includes the page in `empty_pages`.
-   - **Important boundary:** The module **does not run OCR**. Page rendering will still produce high-DPI images for Person 3's ColPali module, but full-text dense/sparse indexing on scanned PDFs requires an external OCR engine (such as Tesseract or Docling OCR).
-2. **Encrypted / Password-Protected PDFs:**
-   - Raises a descriptive `ValueError` prompting the user to decrypt the file.
-3. **Complex Formulas & Vector Graphics:**
-   - Extracted text serializes equations as plain Unicode/ASCII symbols.
-   - For mathematical formula reasoning, downstream retrieval should rely on **Person 3's ColPali visual embeddings** of the rendered page images rather than raw text chunks.
+1. **Scanned Raster PDFs:**
+   - Image-only scanned PDFs have 0 native digital characters.
+   - **Behavior:** The module accurately flags `is_scanned: true`, `ocr_needed: true`, and `status: "warning_ocr_needed"`.
+   - **OCR Requirement:** In accordance with module boundaries, Person 1 does not run OCR. Full-text indexing for scanned papers requires an upstream OCR preprocessor (e.g. Tesseract or Docling OCR).
+2. **Mathematical Formulas:**
+   - Complex LaTeX equations are serialized as Unicode characters. Downstream retrieval of visual formulas should rely on Person 3's ColPali visual embeddings.
+3. **Encrypted PDFs:**
+   - Encrypted PDFs raise an explicit `ValueError` requesting decryption prior to ingestion.
 
 ---
 
-## 6. Execution Commands
+## 6. Commands to Run & Verify
 
-### Installation
+### Install Dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-### Automated Tests (All 42 Tests)
+### Run Test Suite (68 Tests, 100% Passing):
 ```bash
-pytest -v
+python -m pytest -v
 ```
 
-### Process Any Document (Complete Ingestion Flow)
+### Process Sample PDF:
 ```bash
-# 1. Extract text (PyMuPDF)
+# Full pipeline CLI execution:
+python -m app.cli --file data/sample.pdf
+
+# Standalone scripts:
 python extract_pdf.py data/sample.pdf --overwrite
-
-# 2. Extract structured elements with Docling (optional)
-python extract_pdf.py data/sample.pdf --backend auto --overwrite
-
-# 3. Generate chunks with citation metadata
-python chunk_text.py data/processed/sample_extracted.json --chunk-size 500 --chunk-overlap 100 --overwrite
-
-# 4. Render high-DPI page images for ColPali
+python chunk_text.py data/sample.pdf --chunk-size 500 --chunk-overlap 100 --overwrite
 python render_pdf_pages.py data/sample.pdf --dpi 150 --overwrite
 ```

@@ -55,13 +55,19 @@ class PageRenderer:
 
                 pix.save(str(image_path))
 
+                width = pix.width
+                height = pix.height
+                del pix
+
                 rendered_pages.append(
                     PageRenderInfo(
                         page_number=page_num,
                         image_path=str(image_path.resolve()),
-                        width=pix.width,
-                        height=pix.height,
+                        width=width,
+                        height=height,
                         dpi=self.dpi,
+                        title=f"{pdf_path.name} - Page {page_num}",
+                        caption=f"Rendered visual representation of {pdf_path.name} (Page {page_num})",
                     )
                 )
 

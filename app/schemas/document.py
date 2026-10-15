@@ -23,6 +23,8 @@ class PageRenderInfo(BaseModel):
     width: int = Field(..., description="Image width in pixels")
     height: int = Field(..., description="Image height in pixels")
     dpi: int = Field(..., description="Rendered DPI resolution")
+    title: Optional[str] = Field(default=None, description="Descriptive title for Person 4 CRAG evaluator fallback")
+    caption: Optional[str] = Field(default=None, description="Descriptive caption for Person 4 CRAG evaluator fallback")
 
 
 class ExtractedTable(BaseModel):

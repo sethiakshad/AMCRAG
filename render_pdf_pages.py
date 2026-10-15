@@ -150,11 +150,15 @@ def render_pdf_pages(
                     "width": width,
                     "height": height,
                     "dpi": dpi,
+                    "title": f"{pdf_path.name} - Page {page_number}",
+                    "caption": f"Rendered visual representation of {pdf_path.name} (Page {page_number})",
                 }
             )
 
         manifest: Dict[str, Any] = {
             "source_file": pdf_path.name,
+            "source_filename": pdf_path.name,
+            "document_id": pdf_stem,
             "total_pages": total_pages,
             "render_settings": {
                 "dpi": dpi,

@@ -14,6 +14,18 @@ from app.schemas.chunk import (
     ProcessedDocumentOutput,
 )
 
+
+class ScoredCandidate:
+    """Import lazily or from root schemas."""
+    pass
+
+
+# Re-export from root schemas for universal availability
+try:
+    from schemas import RetrievalCandidate, RetrievalResult, ScoredCandidate  # type: ignore
+except ImportError:
+    pass
+
 __all__ = [
     "DocumentExtractionResult",
     "DocumentMetadata",
@@ -24,4 +36,8 @@ __all__ = [
     "ChunkMetadata",
     "DocumentChunk",
     "ProcessedDocumentOutput",
+    "ScoredCandidate",
+    "RetrievalResult",
+    "RetrievalCandidate",
 ]
+

@@ -97,16 +97,31 @@ class TextChunker:
             meta = ChunkMetadata(
                 document_id=doc_id,
                 document_name=doc_name,
+                source_filename=doc_name,
                 page_numbers=[page.page_number],
                 chunk_id=c_id,
                 chunk_index=start_index,
+                section=heading or "General",
                 section_heading=heading,
+                headings=[heading] if heading else [],
                 extraction_method=method_str,
                 source_citation=format_citation(doc_name, [page.page_number]),
                 char_count=len(text),
                 token_estimate=max(1, len(text) // 4),
             )
-            return [DocumentChunk(chunk_id=c_id, chunk_text=text, metadata=meta)]
+            return [
+                DocumentChunk(
+                    chunk_id=c_id,
+                    document_id=doc_id,
+                    page_number=page.page_number,
+                    text=text,
+                    source_filename=doc_name,
+                    page_start=page.page_number,
+                    page_end=page.page_number,
+                    chunk_text=text,
+                    metadata=meta,
+                )
+            ]
 
         # Sliding window with sentence/paragraph awareness
         segments = self._split_into_units(text)
@@ -128,16 +143,31 @@ class TextChunker:
                     meta = ChunkMetadata(
                         document_id=doc_id,
                         document_name=doc_name,
+                        source_filename=doc_name,
                         page_numbers=[page.page_number],
                         chunk_id=c_id,
                         chunk_index=chunk_idx,
+                        section=heading or "General",
                         section_heading=heading,
+                        headings=[heading] if heading else [],
                         extraction_method=method_str,
                         source_citation=format_citation(doc_name, [page.page_number]),
                         char_count=len(chunk_text),
                         token_estimate=max(1, len(chunk_text) // 4),
                     )
-                    chunks.append(DocumentChunk(chunk_id=c_id, chunk_text=chunk_text, metadata=meta))
+                    chunks.append(
+                        DocumentChunk(
+                            chunk_id=c_id,
+                            document_id=doc_id,
+                            page_number=page.page_number,
+                            text=chunk_text,
+                            source_filename=doc_name,
+                            page_start=page.page_number,
+                            page_end=page.page_number,
+                            chunk_text=chunk_text,
+                            metadata=meta,
+                        )
+                    )
                     chunk_idx += 1
 
                 # Calculate overlap backward
@@ -164,16 +194,31 @@ class TextChunker:
                 meta = ChunkMetadata(
                     document_id=doc_id,
                     document_name=doc_name,
+                    source_filename=doc_name,
                     page_numbers=[page.page_number],
                     chunk_id=c_id,
                     chunk_index=chunk_idx,
+                    section=heading or "General",
                     section_heading=heading,
+                    headings=[heading] if heading else [],
                     extraction_method=method_str,
                     source_citation=format_citation(doc_name, [page.page_number]),
                     char_count=len(chunk_text),
                     token_estimate=max(1, len(chunk_text) // 4),
                 )
-                chunks.append(DocumentChunk(chunk_id=c_id, chunk_text=chunk_text, metadata=meta))
+                chunks.append(
+                    DocumentChunk(
+                        chunk_id=c_id,
+                        document_id=doc_id,
+                        page_number=page.page_number,
+                        text=chunk_text,
+                        source_filename=doc_name,
+                        page_start=page.page_number,
+                        page_end=page.page_number,
+                        chunk_text=chunk_text,
+                        metadata=meta,
+                    )
+                )
 
         return chunks
 

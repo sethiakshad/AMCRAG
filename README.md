@@ -137,7 +137,7 @@ manifest_path = Path("data/page_images/sample/sample_manifest.json")
 with manifest_path.open("r", encoding="utf-8") as f:
     manifest = json.load(f)
 
-print(f"Document: {manifest['source_file']}, Total pages: {manifest['total_pages']}")
+print(f"Document: {manifest['source_filename']}, Total pages: {manifest['total_pages']}")
 
 # Iterate through rendered pages and feed into vision models
 for page_info in manifest["pages"]:
@@ -158,23 +158,51 @@ for page_info in manifest["pages"]:
 
 ---
 
-## 5. Automated Tests
+## 5. Teammate Interoperability & Integration
 
-Run the full automated test suite across all 4 milestones (42 tests):
+Person 1 output conforms strictly to the cross-module contracts defined in `schemas.py`:
+
+- **Person 2 (Qdrant & BM25 Text Retrieval):**
+  Pass chunks directly to Person 2's `HybridTextRetriever`:
+  ```python
+  from schemas import DocumentChunk
+  from hybrid_retriever import HybridTextRetriever
+  from app.services.pipeline import DocumentProcessingPipeline
+
+  pipeline = DocumentProcessingPipeline()
+  output = pipeline.process_file("data/sample.pdf")
+
+  retriever = HybridTextRetriever()
+  retriever.index_knowledge_base(chunks=output.chunks)
+  ```
+- **Person 4 (Adaptive Retrieval & CRAG Evaluator):**
+  Chunks preserve 1-indexed `page_start`, `page_end`, and `source_citation` for verified answer citations. Visual page records expose `title` and `caption` for evaluation without runtime OCR.
+- **Person 5 (FastAPI Orchestrator):**
+  Import `DocumentProcessingPipeline` or `index_document_chunks` for synchronous or background ingestion.
+
+---
+
+## 6. Automated Tests (68 Tests, 100% Passing)
+
+Run the full automated test suite covering all modules, schemas, and teammate integration contracts:
 
 ```bash
-# Run all tests
-pytest -v
+# Run all 68 tests
+python -m pytest -v
 
 # Run Milestone 1 tests (15 extraction tests)
-pytest tests/test_extract_pdf.py -v
+python -m pytest tests/test_extract_pdf.py -v
 
 # Run Milestone 2 tests (11 chunking tests)
-pytest tests/test_chunk_text.py -v
+python -m pytest tests/test_chunk_text.py -v
 
 # Run Milestone 3 tests (7 Docling normalization & fallback tests)
-pytest tests/test_docling_extractor.py -v
+python -m pytest tests/test_docling_extractor.py -v
 
 # Run Milestone 4 tests (9 page rendering tests)
-pytest tests/test_render_pdf_pages.py -v
+python -m pytest tests/test_render_pdf_pages.py -v
+
+# Run Central Schema & Teammate Integration tests
+python -m pytest tests/test_schemas.py tests/test_person2_integration.py -v
 ```
+
