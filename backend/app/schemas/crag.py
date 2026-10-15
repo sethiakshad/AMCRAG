@@ -61,7 +61,13 @@ class EvidenceDecision(BaseModel):
 
 
 class CRAGResult(BaseModel):
-    """Final output package from the Person 4 CRAG controller for the orchestrator."""
+    """Final output package from the Person 4 CRAG controller for the orchestrator.
+
+    State machine for Person 5's orchestrator:
+        needs_correction=True  → loop back to Person 3 with reformulated_query
+        can_proceed_to_generation=True → pass accepted_candidates to Context Builder
+        insufficient_evidence=True → abort generation, return "cannot answer" to user
+    """
 
     decision: EvidenceDecision
     reformulated_query: str | None = Field(
@@ -78,3 +84,12 @@ class CRAGResult(BaseModel):
         default=False,
         description="True if retries are exhausted and evidence remains inadequate",
     )
+
+    @property
+    def needs_correction(self) -> bool:
+        """Convenience accessor: True when the orchestrator must retry retrieval.
+
+        Person 5 should use this instead of reaching into decision.needs_correction.
+        When True, `reformulated_query` is guaranteed to be non-None.
+        """
+        return self.decision.needs_correction

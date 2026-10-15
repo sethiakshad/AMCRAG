@@ -11,20 +11,44 @@ from app.schemas.crag import EvidenceDecision
 from app.schemas.retrieval import RetrievalCandidate
 
 
+import os
+
+
+def _env_int(key: str, default: int) -> int:
+    val = os.getenv(key)
+    if val is not None:
+        try:
+            return int(val)
+        except ValueError:
+            pass
+    return default
+
+
+def _env_bool(key: str, default: bool) -> bool:
+    val = os.getenv(key)
+    if val is not None:
+        return val.strip().lower() in ("true", "1", "yes")
+    return default
+
+
 class CorrectionConfig(BaseModel):
     """Configuration for query reformulation and retry bounds."""
 
     max_attempts: int = Field(
-        default=2,
+        default_factory=lambda: _env_int("CRAG_MAX_ATTEMPTS", 2),
         description="Maximum number of correction attempts allowed (default 2 retries)",
     )
     strip_conversational_prefixes: bool = Field(
-        default=True,
+        default_factory=lambda: _env_bool("CRAG_STRIP_PREFIXES", True),
         description="Strip filler phrases like 'can you tell me' to improve retrieval precision",
     )
     detect_visual_intent: bool = Field(
-        default=True,
+        default_factory=lambda: _env_bool("CRAG_DETECT_VISUAL", True),
         description="Detect and reinforce visual keywords (figure, table, chart, diagram)",
+    )
+    custom_visual_keywords: list[str] = Field(
+        default_factory=list,
+        description="Optional additional visual cues to detect beyond defaults",
     )
 
 
@@ -103,7 +127,8 @@ class QueryReformulator:
         if not self.config.detect_visual_intent:
             return False
         q_lower = query.lower()
-        return any(k in q_lower for k in self.VISUAL_KEYWORDS)
+        keywords = self.VISUAL_KEYWORDS + [k.lower() for k in self.config.custom_visual_keywords]
+        return any(k in q_lower for k in keywords)
 
     def _strategy_keyword_isolation(self, cleaned_query: str, is_visual: bool) -> str:
         """Extracts high-information keywords and ensures visual terms are explicit."""

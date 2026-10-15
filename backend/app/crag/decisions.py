@@ -3,6 +3,7 @@
 Follows Sections 4.7, 4.8, 6.1, and 10.4 of AMCRAG Central Project Documentation.
 """
 
+import os
 from typing import Sequence
 from pydantic import BaseModel, Field
 
@@ -15,24 +16,50 @@ from app.schemas.crag import (
 from app.schemas.retrieval import RetrievalCandidate
 
 
+def _env_float(key: str, default: float) -> float:
+    val = os.getenv(key)
+    if val is not None:
+        try:
+            return float(val)
+        except ValueError:
+            pass
+    return default
+
+
+def _env_int(key: str, default: int) -> int:
+    val = os.getenv(key)
+    if val is not None:
+        try:
+            return int(val)
+        except ValueError:
+            pass
+    return default
+
+
 class DecisionConfig(BaseModel):
     """Configuration parameters for evidence thresholding and ambiguous policy."""
 
     upper_threshold: float = Field(
-        default=0.65,
+        default_factory=lambda: _env_float("CRAG_UPPER_THRESHOLD", 0.65),
         description="Confidence threshold above which evidence is judged CORRECT (δ_upper)",
     )
     lower_threshold: float = Field(
-        default=0.30,
+        default_factory=lambda: _env_float("CRAG_LOWER_THRESHOLD", 0.30),
         description="Confidence threshold below which evidence is judged INCORRECT (δ_lower)",
     )
     ambiguous_policy: AmbiguousPolicy = Field(
-        default=AmbiguousPolicy.RETRY_ONCE,
+        default_factory=lambda: AmbiguousPolicy(
+            os.getenv("CRAG_AMBIGUOUS_POLICY", AmbiguousPolicy.RETRY_ONCE.value)
+        ),
         description="Policy to execute when evidence score falls in [δ_lower, δ_upper]",
     )
     min_relevant_candidates: int = Field(
-        default=1,
+        default_factory=lambda: _env_int("CRAG_MIN_RELEVANT_CANDIDATES", 1),
         description="Minimum number of candidates exceeding upper_threshold for a decisive CORRECT",
+    )
+    peak_score_weight: float = Field(
+        default_factory=lambda: _env_float("CRAG_PEAK_SCORE_WEIGHT", 0.7),
+        description="Weight given to the top scoring candidate in aggregate score calculation",
     )
 
 
@@ -68,12 +95,13 @@ class CRAGDecisionEngine:
                 attempt_number=attempt_number,
             )
 
-        # Aggregate evidence score: in CRAG, the peak confidence candidate is the primary signal,
-        # supplemented by the mean score of top-3 candidates.
+        # Aggregate evidence score: weighted combination of peak candidate and top-3 mean
         scores = [c.relevance_score for c in candidate_evaluations]
         max_score = max(scores)
         top_k_scores = sorted(scores, reverse=True)[:3]
-        aggregate_score = (max_score * 0.7) + ((sum(top_k_scores) / len(top_k_scores)) * 0.3)
+        peak_weight = max(0.0, min(1.0, self.config.peak_score_weight))
+        mean_weight = 1.0 - peak_weight
+        aggregate_score = (max_score * peak_weight) + ((sum(top_k_scores) / len(top_k_scores)) * mean_weight)
 
         num_above_upper = sum(1 for s in scores if s >= self.config.upper_threshold)
 

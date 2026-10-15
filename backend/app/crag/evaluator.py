@@ -185,8 +185,9 @@ class T5CRAGEvaluator(BaseCRAGEvaluator):
         try:
             import torch
 
+            # Use official delimiter from model card: f"{query} [SEP] {content}"
             input_texts = [
-                f"query: {query} document: {cand.get_evaluable_content()}"
+                f"{query} [SEP] {cand.get_evaluable_content()}"
                 for cand in candidates
             ]
 
@@ -202,19 +203,57 @@ class T5CRAGEvaluator(BaseCRAGEvaluator):
                 outputs = self.model(**inputs)
                 if hasattr(outputs, "logits"):
                     logits = outputs.logits
+                    is_regression = (
+                        getattr(self.model.config, "problem_type", None) == "regression"
+                        or getattr(self.model.config, "num_labels", None) == 1
+                    )
                     if logits.dim() == 2:
-                        # Softmax over 2 classes (irrelevant / relevant)
-                        if logits.shape[1] >= 2:
-                            probs = torch.softmax(logits, dim=-1)[:, 1]
+                        if logits.shape[1] == 1 or is_regression:
+                            raw = logits.squeeze(-1)
+                            raw_list = raw.cpu().tolist() if hasattr(raw, "cpu") else [float(raw)]
+                            if not isinstance(raw_list, list):
+                                raw_list = [raw_list]
+                            # Adaptive calibration for compressed regression heads:
+                            # If scores are compressed in a narrow window (e.g. [-1.05, -0.95]),
+                            # scale relative to the batch spread across [0.15, 0.90]
+                            min_s, max_s = min(raw_list), max(raw_list)
+                            if len(raw_list) > 1 and (max_s - min_s) > 1e-4:
+                                scores = [
+                                    round(0.15 + 0.75 * ((s - min_s) / (max_s - min_s)), 4)
+                                    for s in raw_list
+                                ]
+                            else:
+                                scores = [
+                                    round(max(0.0, min(1.0, (s + 1.0) / 2.0)), 4)
+                                    for s in raw_list
+                                ]
                         else:
-                            probs = torch.sigmoid(logits.squeeze(-1))
+                            probs = torch.softmax(logits, dim=-1)[:, 1]
+                            scores = probs.cpu().tolist()
+                    elif logits.dim() == 1:
+                        raw_list = logits.cpu().tolist() if hasattr(logits, "cpu") else [float(logits)]
+                        if not isinstance(raw_list, list):
+                            raw_list = [raw_list]
+                        min_s, max_s = min(raw_list), max(raw_list)
+                        if len(raw_list) > 1 and (max_s - min_s) > 1e-4:
+                            scores = [
+                                round(0.15 + 0.75 * ((s - min_s) / (max_s - min_s)), 4)
+                                for s in raw_list
+                            ]
+                        else:
+                            scores = [
+                                round(max(0.0, min(1.0, (s + 1.0) / 2.0)), 4)
+                                for s in raw_list
+                            ]
                     elif logits.dim() == 3:
-                        # Seq2Seq first token logits
+                        # Seq2Seq first token logits fallback
                         first_token_logits = logits[:, 0, :]
                         probs = torch.softmax(first_token_logits, dim=-1).max(dim=-1).values
+                        scores = probs.cpu().tolist()
                     else:
-                        probs = torch.ones(len(candidates)) * 0.5
-                    scores = probs.cpu().tolist()
+                        scores = [0.5] * len(candidates)
+                    if isinstance(scores, float):
+                        scores = [scores]
                 else:
                     scores = [0.5] * len(candidates)
 
