@@ -1,9 +1,27 @@
-"""Unit tests for schema contracts and Pydantic serialization."""
+"""Unit tests for AMC-RAG Data Contracts & Schemas.
+
+Organized clearly by subsystem responsibility:
+- PERSON 1: Document Processing, Extraction & Knowledge Base Schemas Tests
+- PERSON 2: Dense & Sparse Text Retrieval, RRF Fusion & Candidate Schemas Tests (Om Khapekar)
+"""
 
 import json
-from app.schemas.chunk import ChunkMetadata, DocumentChunk, ProcessedDocumentOutput
-from app.schemas.document import DocumentMetadata, PageRenderInfo
+from schemas import (
+    ChunkMetadata,
+    DocumentChunk,
+    DocumentMetadata,
+    PageRenderInfo,
+    ProcessedDocumentOutput,
+    RetrievalCandidate,
+    RetrievalResult,
+    ScoredCandidate,
+)
 
+
+# =============================================================================
+# PERSON 1: Document Ingestion, PDF Processing & Chunking Schemas Tests
+# Teammate: Person 1 (Document Processing & Knowledge Base)
+# =============================================================================
 
 def test_chunk_metadata_schema():
     """Verify that ChunkMetadata contains all required metadata fields."""
@@ -95,10 +113,14 @@ def test_processed_document_output_contract():
     assert dumped["rendered_pages"][0]["dpi"] == 150
 
 
+# =============================================================================
+# PERSON 2: Dense & Sparse Text Retrieval, RRF Fusion & Candidates Tests
+# Teammate: Person 2 / Om Khapekar (Dense/Sparse Text Retrieval & Hybrid Fusion)
+# =============================================================================
+
 def test_document_chunk_contract():
     """Verify Person 2 input contract strictly conforms to Section 5 of Person 2 report."""
-    from schemas import DocumentChunk
-
+    # 1. Full layout metadata contract
     chunk = DocumentChunk(
         chunk_id="doc1_chunk_004",
         document_id="annual_financial_report_2025.pdf",
@@ -132,12 +154,26 @@ def test_document_chunk_contract():
     assert chunk.start_page == 12
     assert chunk.end_page == 12
 
+    # 2. Minimal constructor contract from Om's initial test suite
+    om_chunk = DocumentChunk(
+        chunk_id="c_001",
+        document_id="doc_test.pdf",
+        page_number=1,
+        text="Sample test content from Docling",
+        source_filename="doc_test.pdf",
+        page_start=1,
+        page_end=1,
+        metadata={"section": "abstract"},
+    )
+    assert om_chunk.chunk_id == "c_001"
+    assert om_chunk.page_start == 1
+    assert om_chunk.source_filename == "doc_test.pdf"
+
 
 def test_scored_candidate_contract():
-    """Verify Person 2 ScoredCandidate data contract."""
-    from schemas import ScoredCandidate
-
-    candidate = ScoredCandidate(
+    """Verify Person 2 ScoredCandidate data contract with modality and candidate_type."""
+    # Person 1 & unified format (modality='text')
+    candidate1 = ScoredCandidate(
         chunk_id="doc1_chunk_004",
         score=0.92,
         rank=1,
@@ -149,16 +185,31 @@ def test_scored_candidate_contract():
         page_start=12,
         page_end=12,
     )
-    assert candidate.chunk_id == "doc1_chunk_004"
-    assert candidate.score == 0.92
-    assert candidate.rank == 1
-    assert candidate.modality == "text"
+    assert candidate1.chunk_id == "doc1_chunk_004"
+    assert candidate1.score == 0.92
+    assert candidate1.rank == 1
+    assert candidate1.modality == "text"
+    assert candidate1.candidate_type == "text_chunk"
+
+    # Om's test suite format (candidate_type='text_chunk')
+    candidate2 = ScoredCandidate(
+        chunk_id="c_001",
+        document_id="doc_test.pdf",
+        page_number=1,
+        text="Sample test content",
+        score=0.92,
+        rank=1,
+        candidate_type="text_chunk",
+    )
+    assert candidate2.score == 0.92
+    assert candidate2.rank == 1
+    assert candidate2.candidate_type == "text_chunk"
+    assert candidate2.modality == "text"
 
 
 def test_retrieval_candidate_aliases():
     """Verify RetrievalResult and RetrievalCandidate property aliases conform to Section 10.1 & Person 4."""
-    from schemas import RetrievalCandidate, RetrievalResult
-
+    # 1. Full fused hybrid result
     result = RetrievalResult(
         chunk_id="doc1_chunk_004",
         document_id="annual_financial_report_2025.pdf",
@@ -182,7 +233,7 @@ def test_retrieval_candidate_aliases():
     assert result.retrieval_score == 0.0325
     assert result.get_evaluable_content().startswith("Net profit")
 
-    # Visual candidate evaluation fallback
+    # 2. Visual candidate evaluation fallback
     visual_result = RetrievalCandidate(
         chunk_id="page_img_001",
         document_id="annual_financial_report_2025.pdf",
@@ -198,3 +249,18 @@ def test_retrieval_candidate_aliases():
     assert visual_result.candidate_type == "visual_page"
     assert visual_result.get_evaluable_content() == "Chart showing annual revenue breakdown"
 
+    # 3. Om's minimal constructor & type alias identity
+    om_res = RetrievalResult(
+        chunk_id="c_001",
+        document_id="doc_test.pdf",
+        page_number=1,
+        text="Sample test content",
+        modality="text",
+        fused_score=0.032,
+        dense_rank=1,
+        sparse_rank=2,
+    )
+    assert om_res.candidate_id == "c_001"
+    assert om_res.candidate_type == "text_chunk"
+    assert om_res.retrieval_score == 0.032
+    assert RetrievalCandidate is RetrievalResult

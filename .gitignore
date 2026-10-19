@@ -51,3 +51,8 @@ data/page_images/*
 .DS_Store
 Thumbs.db
 test2/*
+
+# om_branch ignores
+qdrant_storage/
+*.pkl
+.env
