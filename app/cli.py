@@ -5,6 +5,11 @@ import logging
 import sys
 from pathlib import Path
 
+# Enable direct script execution (e.g., `python app/cli.py`)
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
 from app.config import Settings
 from app.services.pipeline import DocumentProcessingPipeline
 

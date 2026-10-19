@@ -9,5 +9,22 @@ pytest>=8.0.0
 
 # Downstream Teammate Subsystem Dependencies (Person 2: Dense/Sparse Retrieval)
 # fastembed>=0.2.7
-# qdrant-client>=1.7.0
 # rank-bm25>=0.2.2
+
+# ---------------------------------------------------------------------------
+# ColPali Visual Retrieval (Person 3 — Multimodal Retrieval & Reranking)
+# ---------------------------------------------------------------------------
+# Install these to enable visual page retrieval:
+#   pip install colpali-engine torch pillow qdrant-client einops
+#
+# GPU recommended: ColPali (vidore/colpali-v1.2) requires ~6 GB VRAM.
+# CPU inference works but is slow (~10-30s per page).
+
+qdrant-client>=1.9.0              # Vector DB client (shared with Person 2)
+pillow>=10.0.0                    # PIL image loading for page images
+
+# Uncomment below after installing PyTorch for your platform:
+# torch>=2.1.0                    # https://pytorch.org/get-started/locally/
+# colpali-engine>=0.3.0           # ColPali model + processor
+# einops>=0.7.0                   # Required by ColPali internals
+# transformers>=4.40.0            # HuggingFace model loading

@@ -288,11 +288,15 @@ def test_cli_chunk_pdf_file(tmp_path: Path):
 
 def test_cli_chunk_json_file(tmp_path: Path):
     """Verify chunk_text.py can process a pre-extracted JSON file via CLI."""
+    json_path = Path("data/processed/sample_extracted.json")
+    if not json_path.exists():
+        subprocess.run([sys.executable, "extract_pdf.py", "data/sample.pdf"], check=True)
+
     out_dir = tmp_path / "cli_chunk_json_out"
     cmd = [
         sys.executable,
         "chunk_text.py",
-        "data/processed/sample_extracted.json",
+        str(json_path),
         "--output-dir",
         str(out_dir),
         "--chunk-size",

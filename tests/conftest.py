@@ -1,7 +1,13 @@
 """Pytest fixtures for generating synthetic PDF documents for testing."""
 
 from pathlib import Path
-import pymupdf as fitz
+try:
+    import pymupdf as fitz
+except ImportError:
+    try:
+        import fitz
+    except ImportError:
+        fitz = None
 import pytest
 
 from app.config import Settings
@@ -26,6 +32,8 @@ def test_settings(tmp_path: Path) -> Settings:
 @pytest.fixture
 def sample_text_pdf(tmp_path: Path) -> Path:
     """Create a 2-page clean PDF with headings, paragraphs, and text."""
+    if fitz is None:
+        pytest.skip("PyMuPDF (fitz) is not installed")
     pdf_path = tmp_path / "sample_text.pdf"
     doc = fitz.open()
 
@@ -59,6 +67,8 @@ def sample_text_pdf(tmp_path: Path) -> Path:
 @pytest.fixture
 def scanned_mock_pdf(tmp_path: Path) -> Path:
     """Create a PDF containing only a raster image and 0 text, simulating a scanned document."""
+    if fitz is None:
+        pytest.skip("PyMuPDF (fitz) is not installed")
     pdf_path = tmp_path / "scanned_doc.pdf"
     doc = fitz.open()
     page = doc.new_page(width=300, height=300)
@@ -77,6 +87,8 @@ def scanned_mock_pdf(tmp_path: Path) -> Path:
 @pytest.fixture
 def empty_page_pdf(tmp_path: Path) -> Path:
     """Create a PDF with one empty page and one minimal text page."""
+    if fitz is None:
+        pytest.skip("PyMuPDF (fitz) is not installed")
     pdf_path = tmp_path / "empty_pages.pdf"
     doc = fitz.open()
     doc.new_page()  # Page 1: totally empty

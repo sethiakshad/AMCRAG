@@ -4,7 +4,13 @@ import logging
 from pathlib import Path
 from typing import List, Optional
 
-import pymupdf as fitz
+try:
+    import pymupdf as fitz
+except ImportError:
+    try:
+        import fitz
+    except ImportError:
+        fitz = None
 
 from app.config import Settings, default_settings
 from app.schemas.document import PageRenderInfo
@@ -31,6 +37,8 @@ class PageRenderer:
         """
         if not pdf_path.exists():
             raise FileNotFoundError(f"PDF not found for rendering: {pdf_path}")
+        if fitz is None:
+            raise ImportError("PyMuPDF is required to render PDF pages. Run: pip install pymupdf")
 
         output_dir = self.settings.get_page_images_path() / document_id
         output_dir.mkdir(parents=True, exist_ok=True)

@@ -1,12 +1,20 @@
 """PyMuPDF (fitz) based PDF text and structure extractor with OCR/scanned detection."""
 
+from __future__ import annotations
+
 import hashlib
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-import pymupdf as fitz
+try:
+    import pymupdf as fitz
+except ImportError:
+    try:
+        import fitz
+    except ImportError:
+        fitz = None
 
 from app.config import Settings, default_settings
 from app.extractors.base import BaseExtractor
