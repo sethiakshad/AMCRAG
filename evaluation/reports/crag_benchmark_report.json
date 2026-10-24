@@ -1,0 +1,55 @@
+{
+  "total_test_scenarios": 5,
+  "initial_decision_distribution": {
+    "CORRECT": 2,
+    "AMBIGUOUS": 1,
+    "INCORRECT": 2
+  },
+  "correction_triggers": 3,
+  "recovery_successes": 2,
+  "recovery_rate_percent": 66.67,
+  "hallucination_prevention_successes": 1,
+  "average_evaluation_latency_ms": 0.2,
+  "scenario_results": [
+    {
+      "id": "bench_01_prose_good",
+      "initial_label": "CORRECT",
+      "final_label": "CORRECT",
+      "correction_triggered": false,
+      "recovered": false,
+      "insufficient_evidence_flagged": false
+    },
+    {
+      "id": "bench_02_visual_good",
+      "initial_label": "CORRECT",
+      "final_label": "CORRECT",
+      "correction_triggered": false,
+      "recovered": false,
+      "insufficient_evidence_flagged": false
+    },
+    {
+      "id": "bench_03_poor_recoverable",
+      "initial_label": "INCORRECT",
+      "final_label": "CORRECT",
+      "correction_triggered": true,
+      "recovered": true,
+      "insufficient_evidence_flagged": false
+    },
+    {
+      "id": "bench_04_unrecoverable",
+      "initial_label": "INCORRECT",
+      "final_label": "INCORRECT",
+      "correction_triggered": true,
+      "recovered": false,
+      "insufficient_evidence_flagged": true
+    },
+    {
+      "id": "bench_05_ambiguous_partial",
+      "initial_label": "AMBIGUOUS",
+      "final_label": "CORRECT",
+      "correction_triggered": true,
+      "recovered": true,
+      "insufficient_evidence_flagged": false
+    }
+  ]
+}

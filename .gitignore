@@ -20,15 +20,20 @@ parts/
 sdist/
 var/
 wheels/
+share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 
-# Virtual environments
-venv/
+# Virtual environments & local env files
+.env
 .venv/
+.venv
 env/
+venv/
 ENV/
+env.bak/
+venv.bak/
 
 # Testing & Coverage
 .pytest_cache/
@@ -42,6 +47,21 @@ data/processed/*
 !data/processed/.gitkeep
 data/page_images/*
 !data/page_images/.gitkeep
+data/indexes/
+data/cache/
+
+# Storage & DB files
+qdrant_storage/
+*.pkl
+*.db
+*.sqlite
+
+# Models & Large Checkpoints
+models/
+*.bin
+*.safetensors
+*.pt
+*.onnx
 
 # IDE and OS files
 .idea/
@@ -51,8 +71,3 @@ data/page_images/*
 .DS_Store
 Thumbs.db
 test2/*
-
-# om_branch ignores
-qdrant_storage/
-*.pkl
-.env
