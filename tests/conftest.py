@@ -1,4 +1,5 @@
-"""Pytest fixtures for generating synthetic PDF documents for testing."""
+import os
+os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
 from pathlib import Path
 try:

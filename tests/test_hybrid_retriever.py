@@ -3,6 +3,11 @@ Unit and Integration tests for Unified HybridTextRetriever.
 Owner: Om Khapekar (Person 2)
 """
 import pytest
+
+pytest.importorskip("sentence_transformers")
+pytest.importorskip("rank_bm25")
+pytest.importorskip("qdrant_client")
+
 from schemas import DocumentChunk
 from hybrid_retriever import HybridTextRetriever
 

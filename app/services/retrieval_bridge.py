@@ -53,17 +53,22 @@ def index_document_chunks(
 
     if retriever is None:
         try:
-            from hybrid_retriever import HybridTextRetriever  # type: ignore
+            from app.retrieval.hybrid_retriever import HybridTextRetriever  # type: ignore
 
             retriever = HybridTextRetriever()
-        except ImportError as e:
-            logger.info(
-                "Person 2's hybrid_retriever module is not yet installed in local environment (%s). "
-                "%d chunks prepared and validated for downstream indexing.",
-                e,
-                len(chunks),
-            )
-            return len(chunks)
+        except ImportError:
+            try:
+                from hybrid_retriever import HybridTextRetriever  # type: ignore
+
+                retriever = HybridTextRetriever()
+            except ImportError as e:
+                logger.info(
+                    "Person 2's hybrid_retriever module is not yet installed in local environment (%s). "
+                    "%d chunks prepared and validated for downstream indexing.",
+                    e,
+                    len(chunks),
+                )
+                return len(chunks)
 
     indexed = retriever.index_knowledge_base(chunks=chunks)
     logger.info("Successfully indexed %d chunks via Person 2 HybridTextRetriever", indexed)

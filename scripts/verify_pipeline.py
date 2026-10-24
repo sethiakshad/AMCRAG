@@ -2,6 +2,9 @@
 Self-Contained Verification Script for Hybrid Text Retrieval & Multimodal Fusion.
 Project: AMC-RAG
 """
+import os
+os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+
 from schemas import DocumentChunk, RetrievalResult
 from fusion_engine import ReciprocalRankFusion
 from multimodal_bridge import MultimodalFusionBridge

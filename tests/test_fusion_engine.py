@@ -3,7 +3,10 @@ Unit tests for Reciprocal Rank Fusion Engine.
 Owner: Om Khapekar (Person 2)
 """
 from schemas import ScoredCandidate, RetrievalResult
-from fusion_engine import ReciprocalRankFusion
+try:
+    from app.retrieval.fusion_engine import ReciprocalRankFusion
+except ImportError:
+    from fusion_engine import ReciprocalRankFusion
 
 
 def test_rrf_scoring_math():
