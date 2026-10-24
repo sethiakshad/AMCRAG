@@ -5,6 +5,9 @@ Owner: Om Khapekar (Person 2)
 import os
 import tempfile
 import pytest
+
+pytest.importorskip("rank_bm25")
+
 from schemas import DocumentChunk
 from sparse_engine import BM25SparseEngine
 

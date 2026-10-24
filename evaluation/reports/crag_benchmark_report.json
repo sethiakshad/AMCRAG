@@ -9,7 +9,7 @@
   "recovery_successes": 2,
   "recovery_rate_percent": 66.67,
   "hallucination_prevention_successes": 1,
-  "average_evaluation_latency_ms": 0.2,
+  "average_evaluation_latency_ms": 0.29,
   "scenario_results": [
     {
       "id": "bench_01_prose_good",

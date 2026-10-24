@@ -31,14 +31,19 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 try:
     import torch
-    from PIL import Image
-    from colpali_engine.models import ColPali, ColPaliProcessor
+except ImportError:
+    torch = None  # type: ignore
 
+try:
+    from PIL import Image
+except ImportError:
+    Image = None  # type: ignore
+
+try:
+    from colpali_engine.models import ColPali, ColPaliProcessor
     _COLPALI_AVAILABLE = True
 except ImportError:
     _COLPALI_AVAILABLE = False
-    torch = None  # type: ignore
-    Image = None  # type: ignore
     ColPali = None  # type: ignore
     ColPaliProcessor = None  # type: ignore
 

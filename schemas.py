@@ -142,6 +142,20 @@ RetrievalCandidate = RetrievalResult
 
 
 # =============================================================================
+# PERSON 4: CRAG Evaluation, Decision Engine & Corrective Retrieval
+# Teammate: Person 4 / Meghraj Mahajan (CRAG Evaluator, Decision Policy & Controller)
+# =============================================================================
+
+from app.schemas.crag import (
+    AmbiguousPolicy,
+    CandidateEvaluation,
+    CRAGResult,
+    EvidenceDecision,
+    EvidenceLabel,
+)
+
+
+# =============================================================================
 # EXPORTS
 # =============================================================================
 
@@ -160,4 +174,10 @@ __all__ = [
     "ScoredCandidate",
     "RetrievalResult",
     "RetrievalCandidate",
+    # Person 4
+    "AmbiguousPolicy",
+    "CandidateEvaluation",
+    "CRAGResult",
+    "EvidenceDecision",
+    "EvidenceLabel",
 ]

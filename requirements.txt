@@ -30,3 +30,9 @@ pillow>=10.0.0                    # PIL image loading for page images
 # colpali-engine>=0.3.0           # ColPali model + processor
 # einops>=0.7.0                   # Required by ColPali internals
 # transformers>=4.40.0            # HuggingFace model loading
+
+# ---------------------------------------------------------------------------
+# Person 4: CRAG (Corrective Retrieval-Augmented Generation)
+# ---------------------------------------------------------------------------
+# Optional T5 CRAG Evaluator (uses fast heuristic fallback if transformers is omitted)
+# transformers>=4.35.0

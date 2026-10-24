@@ -151,7 +151,7 @@ class TestMaxSimScoring:
 
         # Use the static score() method without loading the model
         vec = [[1.0, 0.0, 0.0]]
-        score = ColPaliModel.score.__func__(None, vec, vec)  # unbound call
+        score = getattr(ColPaliModel.score, "__func__", ColPaliModel.score)(None, vec, vec)  # unbound call
         assert score == pytest.approx(1.0, abs=1e-4)
 
     def test_orthogonal_vectors_score_zero(self):
@@ -161,7 +161,7 @@ class TestMaxSimScoring:
 
         q = [[1.0, 0.0]]
         p = [[0.0, 1.0]]
-        score = ColPaliModel.score.__func__(None, q, p)
+        score = getattr(ColPaliModel.score, "__func__", ColPaliModel.score)(None, q, p)
         assert score == pytest.approx(0.0, abs=1e-4)
 
     def test_score_returns_float(self):
@@ -170,7 +170,7 @@ class TestMaxSimScoring:
 
         q = _make_query_vectors(4, 16)
         p = _make_page_vectors(8, 16)
-        score = ColPaliModel.score.__func__(None, q, p)
+        score = getattr(ColPaliModel.score, "__func__", ColPaliModel.score)(None, q, p)
         assert isinstance(score, float)
         assert 0.0 <= score <= 1.0 + 1e-4  # allow tiny floating point overshoot
 
@@ -183,8 +183,9 @@ class TestMaxSimScoring:
         similar_p = [[0.9, 0.1, 0.0]]
         dissimilar_p = [[-1.0, 0.0, 0.0]]
 
-        score_sim = ColPaliModel.score.__func__(None, similar_q, similar_p)
-        score_dis = ColPaliModel.score.__func__(None, similar_q, dissimilar_p)
+        score_func = getattr(ColPaliModel.score, "__func__", ColPaliModel.score)
+        score_sim = score_func(None, similar_q, similar_p)
+        score_dis = score_func(None, similar_q, dissimilar_p)
         assert score_sim > score_dis
 
 

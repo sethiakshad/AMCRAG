@@ -15,6 +15,15 @@ from app.schemas.chunk import (
 )
 
 
+from app.schemas.crag import (
+    AmbiguousPolicy,
+    CandidateEvaluation,
+    CRAGResult,
+    EvidenceDecision,
+    EvidenceLabel,
+)
+
+
 class ScoredCandidate:
     """Import lazily or from root schemas."""
     pass
@@ -39,5 +48,11 @@ __all__ = [
     "ScoredCandidate",
     "RetrievalResult",
     "RetrievalCandidate",
+    # Person 4: CRAG Schemas
+    "AmbiguousPolicy",
+    "CandidateEvaluation",
+    "CRAGResult",
+    "EvidenceDecision",
+    "EvidenceLabel",
 ]
 

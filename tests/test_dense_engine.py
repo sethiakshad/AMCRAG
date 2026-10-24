@@ -3,6 +3,10 @@ Unit tests for Dense Vector Retrieval Engine (BGE + Qdrant).
 Owner: Om Khapekar (Person 2)
 """
 import pytest
+
+pytest.importorskip("sentence_transformers")
+pytest.importorskip("qdrant_client")
+
 from schemas import DocumentChunk
 from dense_engine import BGEDenseEngine
 
