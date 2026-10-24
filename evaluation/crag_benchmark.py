@@ -14,8 +14,10 @@ import sys
 import time
 from typing import Any
 
-# Ensure backend package is in python path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend")))
+# Ensure repository root is in python path
+_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
 
 from app.crag.controller import CRAGController
 from app.crag.decisions import DecisionConfig

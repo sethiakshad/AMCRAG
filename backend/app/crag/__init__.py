@@ -1,18 +1,16 @@
-"""CRAG (Corrective Retrieval-Augmented Generation) package for AMCRAG.
+"""Backward-compatibility shim for backend.app.crag package.
 
-Implements Person 4 deliverables:
-- BaseCRAGEvaluator, HeuristicCRAGEvaluator, T5CRAGEvaluator
-- CRAGDecisionEngine, DecisionConfig
-- QueryReformulator, CorrectionConfig
-- CRAGController
+Canonical module location: app.crag
 """
 
-from app.crag.controller import CRAGController
-from app.crag.correction import CorrectionConfig, QueryReformulator
-from app.crag.decisions import CRAGDecisionEngine, DecisionConfig
-from app.crag.evaluator import (
+from app.crag import (
     BaseCRAGEvaluator,
+    CRAGController,
+    CRAGDecisionEngine,
+    CorrectionConfig,
+    DecisionConfig,
     HeuristicCRAGEvaluator,
+    QueryReformulator,
     T5CRAGEvaluator,
 )
 

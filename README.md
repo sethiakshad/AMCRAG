@@ -1,208 +1,194 @@
-# AMCRAG - Document Processing & Knowledge Base Preparation
+# AMCRAG: Adaptive Multimodal Corrective Retrieval-Augmented Generation
 
-> **Module:** Person 1 — Document Processing and Knowledge Base Preparation  
-> **Project:** AMCRAG (Adaptive Multimodal Corrective RAG)
+[![Tests](https://img.shields.io/badge/pytest-117%20passed-brightgreen.svg)](#running-tests)
+[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](#)
 
----
-
-## 1. Overview & Architecture
-
-Person 1's module prepares clean, structured knowledge representations from input PDF research papers for downstream AMCRAG teammates:
-- **Milestone 1 (`extract_pdf.py`):** Page-wise text extraction using PyMuPDF (`fitz`), preserving 1-based page order, detecting empty/whitespace pages without inventing text.
-- **Milestone 2 (`chunk_text.py`):** Configurable sliding-window text chunking with overlap, preserving word boundaries, provenance, stable unique IDs, and start/end page numbers.
-- **Milestone 3 (`docling_extractor.py`):** Optional structured document extraction using IBM Docling for headings, paragraphs, and tables, with automatic, transparent fallback to PyMuPDF.
-- **Milestone 4 (`render_pdf_pages.py`):** High-resolution PDF page rendering into PNG images at configurable DPI with structured JSON manifests for downstream visual retrieval (ColPali).
-
-All modules are completely decoupled, lightweight, and memory-efficient.
+> **B.Tech Research Project:** AMCRAG combines **dense semantic vector retrieval**, **sparse lexical search (BM25)**, and **direct visual page retrieval (ColPali)**, gated by an **Adaptive Corrective RAG (CRAG) decision policy** to deliver hallucination-resistant, multimodal question answering over research papers and complex PDF reports.
 
 ---
 
-## 2. Setup & Installation
+## 1. System Architecture & End-to-End Flow
 
-### Core Dependencies (Fast & Lightweight)
+```
+[ User Query ]
+       │
+       ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 1. Upstream Document Ingestion (Person 1)                   │
+│    • PyMuPDF / IBM Docling Text & Table Extractor           │
+│    • Sentence-Bounded Sliding Window Chunker                │
+│    • 150 DPI Visual Page Rasterizer (PNGs + Manifest)       │
+└──────────────┬──────────────────────────────┬───────────────┘
+               │                              │
+               │ list[DocumentChunk]          │ Page PNG Images
+               ▼                              ▼
+┌──────────────────────────────┐┌─────────────────────────────┐
+│ 2. Text Retrieval (Person 2) ││ 3. Visual Search (Person 3) │
+│    • Dense: BGE-base (Qdrant)││    • ColPali VLM Multi-     │
+│    • Sparse: BM25Okapi       ││      vector late-interaction│
+└──────────────┬───────────────┘└─────────────┬───────────────┘
+               │                              │
+               │ dense & sparse candidates    │ visual candidates
+               └──────────────┬───────────────┘
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 4. Reciprocal Rank Fusion (RRF k=60) & Cross-Modal Scoring  │
+│    Combined multi-channel candidates: list[RetrievalResult] │
+└─────────────────────────────┬───────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 5. CRAG Quality Gatekeeper & Query Correction (Person 4)    │
+│    • Mindie/T5-Large CRAG Evaluator (Heuristic fallback)    │
+│    • Dual Confidence Thresholds (β_upper=0.7, β_lower=0.3)  │
+│    • Knowledge Strip Sentence Decomposer                    │
+│    • Corrective Query Reformulator (Retry Loop)             │
+└──────────────┬──────────────────────────────┬───────────────┘
+               │                              │
+   needs_correction == True                   │ can_proceed == True
+   (Reformulate query & retry)                ▼
+                              ┌───────────────────────────────┐
+                              │ 6. Generation & API (Person 5)│
+                              │    • FastAPI Orchestrator     │
+                              │    • Attributed LLM Answer    │
+                              └───────────────────────────────┘
+```
+
+---
+
+## 2. Repository Layout & Module Directory
+
+All core source code is cleanly packaged under `app/`:
+
+```text
+AMCRAG/
+├── app/                                # Core Application Package (Single Source of Truth)
+│   ├── chunking/                       # [Person 1] Text chunking & token windowing
+│   │   └── text_chunker.py
+│   ├── colpali/                        # [Person 3] ColPali multi-vector VLM indexer & retriever
+│   │   ├── colpali_indexer.py
+│   │   ├── colpali_model.py
+│   │   ├── colpali_reranker.py
+│   │   └── colpali_retriever.py
+│   ├── crag/                           # [Person 4] CRAG evaluation, decisions, & correction
+│   │   ├── controller.py
+│   │   ├── correction.py
+│   │   ├── decisions.py
+│   │   └── evaluator.py
+│   ├── extractors/                     # [Person 1] PyMuPDF & Docling PDF parsers
+│   │   ├── base.py
+│   │   ├── docling_extractor.py
+│   │   ├── fallback_extractor.py
+│   │   └── pymupdf_extractor.py
+│   ├── retrieval/                      # [Person 2] Dense (BGE), Sparse (BM25), & RRF Fusion
+│   │   ├── dense_engine.py
+│   │   ├── sparse_engine.py
+│   │   ├── fusion_engine.py
+│   │   ├── hybrid_retriever.py
+│   │   └── multimodal_bridge.py
+│   ├── schemas/                        # Universal Pydantic v2 data models
+│   │   ├── chunk.py
+│   │   ├── crag.py
+│   │   ├── document.py
+│   │   └── retrieval.py
+│   └── services/                       # Ingestion pipeline & retrieval bridges
+│       ├── page_renderer.py
+│       ├── pipeline.py
+│       └── retrieval_bridge.py
+│
+├── docs/                               # Teammate Reports & Technical Specifications
+│   ├── AMCRAG_Central_Project_Documentation.md
+│   ├── COLPALI_MULTIMODAL_PLAN.md
+│   ├── CRAG_PERSON_4_REPORT_AND_INTEGRATION_GUIDE.md
+│   ├── INTEGRATION_PERSON_1.md
+│   ├── OM_WORK_PERSON_2.md
+│   ├── PERSON_4_INTEGRATION_GUIDE.md
+│   └── TEXT_RETRIEVAL_HYBRID_FUSION_SPEC.md
+│
+├── evaluation/                         # Benchmarking & Metrics
+│   ├── crag_benchmark.py               # CRAG recovery & latency evaluation
+│   └── reports/
+│       └── crag_benchmark_report.json
+│
+├── tests/                              # Comprehensive Automated Test Suite
+│   ├── test_chunking.py / test_chunk_text.py
+│   ├── test_colpali.py
+│   ├── test_crag.py
+│   ├── test_dense_engine.py / test_sparse_engine.py / test_fusion_engine.py
+│   ├── test_docling_extractor.py / test_extractors.py
+│   └── test_pipeline.py / test_end_to_end_integration.py
+│
+├── data/                               # Data directories (uploads, processed, page_images)
+├── requirements.txt                    # Unified dependency specification
+├── pytest.ini                          # Pytest configuration
+└── schemas.py                          # Canonical root contract re-exports
+```
+
+---
+
+## 3. Quickstart & Usage
+
+### Installation
 ```bash
+# Clone and enter workspace
+git clone https://github.com/sethiakshad/AMCRAG.git
+cd AMCRAG
+
+# Install dependencies
 pip install -r requirements.txt
 ```
-*(Installs `pymupdf>=1.24.0` and `pytest>=8.0.0`)*
 
-### Optional: IBM Docling for Deep Layout Parsing
-If you want to use the optional deep-learning structured extraction backend:
+### 1. Ingest & Process a PDF (Person 1)
 ```bash
-pip install docling
-```
-*(If Docling is not installed, the pipeline automatically falls back to PyMuPDF without failing).*
-
----
-
-## 3. How to Run
-
-### Milestone 1: PDF Text Extraction (`extract_pdf.py`)
-```bash
-# Default fast extraction
+# Process a PDF into chunks and 150 DPI page images
 python extract_pdf.py data/sample.pdf
-
-# Overwrite existing extracted output
-python extract_pdf.py data/sample.pdf --overwrite
+python chunk_text.py data/sample.pdf --chunk-size 500 --chunk-overlap 100
+python render_pdf_pages.py data/sample.pdf --dpi 150
 ```
-Outputs: `data/processed/<name>_extracted.json`
 
----
-
-### Milestone 2: Text Chunking (`chunk_text.py`)
+### 2. Run Hybrid Text Retrieval Simulation (Person 2)
 ```bash
-# Chunk directly from PDF
-python chunk_text.py data/sample.pdf
-
-# Custom chunk size and overlap
-python chunk_text.py data/sample.pdf --chunk-size 300 --chunk-overlap 50
-
-# Chunk an already extracted JSON file
-python chunk_text.py data/processed/sample_extracted.json --overwrite
+python verify_pipeline.py
 ```
-Outputs: `data/processed/<name>_chunks.json`
 
----
-
-### Milestone 3: Structured Extraction with Fallback (`extract_pdf.py`)
+### 3. Run CRAG Evaluator & Correction Benchmark (Person 4)
 ```bash
-# Automatic Docling with PyMuPDF fallback
-python extract_pdf.py data/sample.pdf --backend auto --overwrite
-
-# Strict Docling backend
-python extract_pdf.py data/sample.pdf --backend docling
+python evaluation/crag_benchmark.py
 ```
 
 ---
 
-### Milestone 4: PDF Page Rendering (`render_pdf_pages.py`)
-Render PDF pages into high-resolution images for visual retrieval:
+## 4. Running Tests
 
+Run the complete automated test suite (117+ tests):
 ```bash
-# Render with default settings (150 DPI, PNG)
-python render_pdf_pages.py data/sample.pdf
-
-# Custom DPI and destination directory
-python render_pdf_pages.py data/sample.pdf --dpi 200 --output-dir my_images/
-
-# Overwrite existing rendered images and manifest
-python render_pdf_pages.py data/sample.pdf --overwrite
-```
-Outputs: `data/page_images/<pdf_stem>/<pdf_stem>_page_0001.png` and `data/page_images/<pdf_stem>/<pdf_stem>_manifest.json`
-
----
-
-## 4. How Teammate Consumes Rendered Images & Manifest
-
-The visual retrieval teammate (Person 3) only needs to read the manifest JSON to access rendered images:
-
-### Manifest Schema (`data/page_images/<pdf_stem>/<pdf_stem>_manifest.json`)
-```json
-{
-  "source_file": "sample.pdf",
-  "total_pages": 3,
-  "render_settings": {
-    "dpi": 150,
-    "image_format": "png"
-  },
-  "output_directory": "E:\\AMC RAG\\data\\page_images\\sample",
-  "total_rendered_images": 3,
-  "pages": [
-    {
-      "page_number": 1,
-      "image_filename": "sample_page_0001.png",
-      "image_path": "E:\\AMC RAG\\data\\page_images\\sample\\sample_page_0001.png",
-      "width": 1240,
-      "height": 1755,
-      "dpi": 150
-    },
-    {
-      "page_number": 2,
-      "image_filename": "sample_page_0002.png",
-      "image_path": "E:\\AMC RAG\\data\\page_images\\sample\\sample_page_0002.png",
-      "width": 1240,
-      "height": 1755,
-      "dpi": 150
-    }
-  ]
-}
+pytest
 ```
 
-### Python Consumption Example (For Person 3 / ColPali Module)
-```python
-import json
-from pathlib import Path
-from PIL import Image
-
-manifest_path = Path("data/page_images/sample/sample_manifest.json")
-with manifest_path.open("r", encoding="utf-8") as f:
-    manifest = json.load(f)
-
-print(f"Document: {manifest['source_filename']}, Total pages: {manifest['total_pages']}")
-
-# Iterate through rendered pages and feed into vision models
-for page_info in manifest["pages"]:
-    page_num = page_info["page_number"]
-    image_path = page_info["image_path"]
-
-    # Load image directly for embedding / visual indexing
-    image = Image.open(image_path)
-    print(f"Loaded Page {page_num}: {image.size} ({page_info['dpi']} DPI)")
-
-    # Teammate's ColPali indexing logic goes here:
-    # visual_embedding = colpali_model.process_image(image)
-```
-
-> **Note on Boundaries:**  
-> - Image rendering produces clean raster representations of document pages. It **does not perform OCR**.  
-> - Multi-vector ColPali indexing, embeddings, and retrieval are handled in Person 3's module.
-
----
-
-## 5. Teammate Interoperability & Integration
-
-Person 1 output conforms strictly to the cross-module contracts defined in `schemas.py`:
-
-- **Person 2 (Qdrant & BM25 Text Retrieval):**
-  Pass chunks directly to Person 2's `HybridTextRetriever`:
-  ```python
-  from schemas import DocumentChunk
-  from hybrid_retriever import HybridTextRetriever
-  from app.services.pipeline import DocumentProcessingPipeline
-
-  pipeline = DocumentProcessingPipeline()
-  output = pipeline.process_file("data/sample.pdf")
-
-  retriever = HybridTextRetriever()
-  retriever.index_knowledge_base(chunks=output.chunks)
-  ```
-- **Person 4 (Adaptive Retrieval & CRAG Evaluator):**
-  Chunks preserve 1-indexed `page_start`, `page_end`, and `source_citation` for verified answer citations. Visual page records expose `title` and `caption` for evaluation without runtime OCR.
-- **Person 5 (FastAPI Orchestrator):**
-  Import `DocumentProcessingPipeline` or `index_document_chunks` for synchronous or background ingestion.
-
----
-
-## 6. Automated Tests (68 Tests, 100% Passing)
-
-Run the full automated test suite covering all modules, schemas, and teammate integration contracts:
-
+Run specific subsystem tests:
 ```bash
-# Run all 68 tests
-python -m pytest -v
+# Person 1: Document processing & chunking
+pytest tests/test_chunk_text.py tests/test_extract_pdf.py
 
-# Run Milestone 1 tests (15 extraction tests)
-python -m pytest tests/test_extract_pdf.py -v
+# Person 2: Dense & sparse retrieval, RRF fusion
+pytest tests/test_fusion_engine.py tests/test_person2_integration.py
 
-# Run Milestone 2 tests (11 chunking tests)
-python -m pytest tests/test_chunk_text.py -v
+# Person 3: ColPali visual retrieval & MaxSim scoring
+pytest tests/test_colpali.py
 
-# Run Milestone 3 tests (7 Docling normalization & fallback tests)
-python -m pytest tests/test_docling_extractor.py -v
-
-# Run Milestone 4 tests (9 page rendering tests)
-python -m pytest tests/test_render_pdf_pages.py -v
-
-# Run Central Schema & Teammate Integration tests
-python -m pytest tests/test_schemas.py tests/test_person2_integration.py -v
+# Person 4: CRAG evaluator, decision engine, & query correction
+pytest tests/test_crag.py
 ```
 
+---
+
+## 5. Teammate Documentation Index
+
+| Teammate | Focus Area | Report / Specification |
+| :--- | :--- | :--- |
+| **Person 1** | Document Ingestion, PyMuPDF, Docling, & Chunking | [`docs/INTEGRATION_PERSON_1.md`](docs/INTEGRATION_PERSON_1.md) |
+| **Person 2** | Dense (BGE), Sparse (BM25), Qdrant, & RRF Fusion | [`docs/OM_WORK_PERSON_2.md`](docs/OM_WORK_PERSON_2.md) |
+| **Person 3** | ColPali Multimodal Retrieval & MaxSim Reranking | [`docs/COLPALI_MULTIMODAL_PLAN.md`](docs/COLPALI_MULTIMODAL_PLAN.md) |
+| **Person 4** | CRAG Evaluation, Decision Engine, & Reformulation | [`docs/CRAG_PERSON_4_REPORT_AND_INTEGRATION_GUIDE.md`](docs/CRAG_PERSON_4_REPORT_AND_INTEGRATION_GUIDE.md) |
+| **Central** | Complete System Architecture & Contracts Specification | [`docs/AMCRAG_Central_Project_Documentation.md`](docs/AMCRAG_Central_Project_Documentation.md) |
