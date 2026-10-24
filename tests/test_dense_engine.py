@@ -8,7 +8,10 @@ pytest.importorskip("sentence_transformers")
 pytest.importorskip("qdrant_client")
 
 from schemas import DocumentChunk
-from dense_engine import BGEDenseEngine
+try:
+    from app.retrieval.dense_engine import BGEDenseEngine
+except ImportError:
+    from dense_engine import BGEDenseEngine
 
 
 @pytest.fixture(scope="module")

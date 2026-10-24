@@ -9,7 +9,10 @@ import pytest
 pytest.importorskip("rank_bm25")
 
 from schemas import DocumentChunk
-from sparse_engine import BM25SparseEngine
+try:
+    from app.retrieval.sparse_engine import BM25SparseEngine
+except ImportError:
+    from sparse_engine import BM25SparseEngine
 
 
 @pytest.fixture

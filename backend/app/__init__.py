@@ -1,1 +1,0 @@
-"""AMCRAG backend application package."""
