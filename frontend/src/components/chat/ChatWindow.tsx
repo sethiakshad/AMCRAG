@@ -6,7 +6,7 @@
  */
 
 import React, { useRef, useEffect, useState } from 'react';
-import { MessageSquare, Sparkles, Filter, X } from 'lucide-react';
+import { Filter, X } from 'lucide-react';
 import { MessageItem } from './MessageItem';
 import { MessageInput } from './MessageInput';
 import { EvidenceDrawer } from './EvidenceDrawer';
@@ -216,13 +216,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     return 'Good evening';
   };
 
-  const starterQueries = [
-    'What is the lock-in period and tax deduction rule for ELSS mutual funds?',
-    'Summarize the primary revenue growth drivers disclosed in the report.',
-    'Compare the risk factors outlined between quarterly periods.',
-    'Extract key trends and figures illustrated in the performance charts.',
-  ];
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
       {/* Active Document Filter Notification Pill if restricted */}
@@ -285,23 +278,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
               onOpenSettings={() => setIsSettingsOpen(true)}
               selectedDocCount={settings.selectedDocIds.length}
             />
-
-            {/* Suggestion Chips */}
-            <div className="chips-wrap">
-              {starterQueries.map((q) => (
-                <button
-                  key={q}
-                  onClick={() => {
-                    setInput(q);
-                    handleSendQuery(q);
-                  }}
-                  className="suggestion-chip"
-                >
-                  <MessageSquare size={13} style={{ color: 'var(--brand-clay)' }} />
-                  <span>{q}</span>
-                </button>
-              ))}
-            </div>
           </div>
         </div>
       ) : (
