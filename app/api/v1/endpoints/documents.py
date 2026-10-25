@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import shutil
+import subprocess
 import uuid
 from pathlib import Path
 from typing import Any, List, Optional
@@ -232,9 +233,9 @@ def list_documents(
     for doc_id, item in manifest.items():
         seen_ids.add(doc_id)
         output_json = processed_dir / f"{doc_id}.json"
-        page_count = 0
-        file_size = None
-        timestamp = None
+        is_scanned = False
+        ocr_needed = False
+        status_val = item.get("status")
 
         if output_json.exists():
             try:
@@ -243,6 +244,9 @@ def list_documents(
                 page_count = meta.get("page_count", 0)
                 file_size = meta.get("file_size_bytes")
                 timestamp = meta.get("upload_timestamp")
+                is_scanned = data.get("is_scanned", False)
+                ocr_needed = data.get("ocr_needed", False)
+                status_val = data.get("status", status_val)
             except Exception:
                 pass
 
@@ -254,6 +258,9 @@ def list_documents(
                 chunk_count=item.get("total_chunks", 0),
                 upload_timestamp=timestamp,
                 file_size_bytes=file_size,
+                is_scanned=is_scanned,
+                ocr_needed=ocr_needed,
+                status=status_val,
             )
         )
 
@@ -277,6 +284,9 @@ def list_documents(
                         chunk_count=data.get("total_chunks", len(data.get("chunks", []))),
                         upload_timestamp=meta.get("upload_timestamp"),
                         file_size_bytes=meta.get("file_size_bytes"),
+                        is_scanned=data.get("is_scanned", False),
+                        ocr_needed=data.get("ocr_needed", False),
+                        status=data.get("status"),
                     )
                 )
             except Exception:
@@ -407,3 +417,126 @@ def delete_document(
         deleted=True,
         message=f"Document '{doc_id}' deleted successfully from knowledge base.",
     )
+
+
+@router.post(
+    "/{doc_id}/ocr",
+    summary="Run Vision OCR and Index Scanned Document",
+    description="Runs fast Apple Vision OCR on rendered page images, chunks extracted text, and indexes into Qdrant & BM25.",
+)
+def ocr_document(
+    doc_id: str,
+    start_page: int = 1,
+    end_page: int = 60,
+    settings: Settings = Depends(get_settings),
+    retriever: Optional[Any] = Depends(get_retriever),
+    duplicate_detector: DuplicateDetector = Depends(get_duplicate_detector),
+) -> dict:
+    page_images_dir = settings.get_page_images_path() / doc_id
+    if not page_images_dir.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Rendered page images for document '{doc_id}' not found.",
+        )
+
+    ocr_bin = settings.base_dir / "scripts" / "fast_ocr_bin"
+    if not ocr_bin.exists():
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="fast_ocr_bin utility not compiled or missing.",
+        )
+
+    cmd = [str(ocr_bin), str(page_images_dir), str(start_page), str(end_page)]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        pages_data = json.loads(proc.stdout)
+    except Exception as exc:
+        logger.error("OCR execution failed for %s: %s", doc_id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"OCR execution failed: {str(exc)}",
+        )
+
+    from schemas import DocumentChunk
+
+    watermark_terms = ["books4career.blogspot.com", "copyrighted material"]
+    chunks: List[DocumentChunk] = []
+
+    for item in pages_data:
+        p_num = item["page"]
+        raw_text = item.get("text", "")
+
+        clean_lines = [
+            ln.strip() for ln in raw_text.splitlines()
+            if ln.strip() and not any(term in ln.lower() for term in watermark_terms)
+        ]
+        page_clean_text = "\n".join(clean_lines).strip()
+        if len(page_clean_text) < 30:
+            continue
+
+        chunk_size = settings.chunk_size
+        overlap = settings.chunk_overlap
+        text_len = len(page_clean_text)
+
+        start_idx = 0
+        c_sub = 0
+        while start_idx < text_len:
+            end_idx = min(start_idx + chunk_size, text_len)
+            chunk_content = page_clean_text[start_idx:end_idx].strip()
+            if chunk_content:
+                cid = f"{doc_id}_p{p_num:03d}_c{c_sub:02d}"
+                chunk = DocumentChunk(
+                    chunk_id=cid,
+                    document_id=doc_id,
+                    source_filename=f"{doc_id}.pdf",
+                    page_number=p_num,
+                    page_start=p_num,
+                    page_end=p_num,
+                    text=chunk_content,
+                    candidate_type="text_chunk",
+                    chunk_index=len(chunks),
+                    section_heading=f"Page {p_num}",
+                    char_count=len(chunk_content),
+                    word_count=len(chunk_content.split()),
+                )
+                chunks.append(chunk)
+                c_sub += 1
+            if end_idx >= text_len:
+                break
+            start_idx += (chunk_size - overlap)
+
+    indexed_count = 0
+    if retriever is not None and chunks:
+        if hasattr(retriever, "delete_document"):
+            retriever.delete_document(doc_id)
+        indexed_count = retriever.index_knowledge_base(chunks)
+        if not isinstance(indexed_count, int):
+            indexed_count = len(chunks)
+
+    doc_json = settings.get_processed_path() / f"{doc_id}.json"
+    if doc_json.exists():
+        try:
+            d = json.loads(doc_json.read_text(encoding="utf-8"))
+            d["chunks"] = [c.model_dump() for c in chunks]
+            d["total_chunks"] = len(chunks)
+            d["is_scanned"] = True
+            d["ocr_needed"] = False
+            d["status"] = "indexed_with_ocr"
+            d["warnings"] = [f"OCRed {len(pages_data)} pages using Apple Vision Engine."]
+            doc_json.write_text(json.dumps(d, indent=2), encoding="utf-8")
+        except Exception as exc:
+            logger.warning("Could not update processed JSON %s: %s", doc_json, exc)
+
+    manifest = duplicate_detector._load_manifest()
+    if doc_id in manifest:
+        manifest[doc_id]["total_chunks"] = len(chunks)
+        manifest[doc_id]["status"] = "indexed_with_ocr"
+        duplicate_detector._save_manifest(manifest)
+
+    return {
+        "document_id": doc_id,
+        "pages_ocred": len(pages_data),
+        "chunks_indexed": indexed_count,
+        "status": "success",
+        "message": f"Successfully OCRed {len(pages_data)} pages and indexed {len(chunks)} chunks into Knowledge Base.",
+    }

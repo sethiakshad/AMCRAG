@@ -60,6 +60,7 @@ class HybridTextRetriever:
         # 2. Index in BM25 Inverted Index
         self.sparse_engine.index_chunks(chunks)
         print("[HybridRetriever] Knowledge Base indexing completed successfully.")
+        return len(chunks)
 
     # -------------------------------------------------------------
     # PLUG 2: Downstream Query Hook (Used by AMC-RAG Routing & Reranker)

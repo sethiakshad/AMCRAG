@@ -71,8 +71,9 @@ def index_document_chunks(
                 return len(chunks)
 
     indexed = retriever.index_knowledge_base(chunks=chunks)
-    logger.info("Successfully indexed %d chunks via Person 2 HybridTextRetriever", indexed)
-    return indexed
+    count = indexed if isinstance(indexed, int) else len(chunks)
+    logger.info("Successfully indexed %d chunks via Person 2 HybridTextRetriever", count)
+    return count
 
 
 # ===========================================================================

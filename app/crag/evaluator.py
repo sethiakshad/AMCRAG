@@ -42,39 +42,63 @@ class HeuristicCRAGEvaluator(BaseCRAGEvaluator):
     heavy PyTorch model downloads.
     """
 
+    STOPWORDS = {
+        "a", "about", "above", "after", "again", "against", "all", "am", "an", "and", "any",
+        "are", "as", "at", "be", "because", "been", "before", "being", "below", "between",
+        "both", "but", "by", "can", "could", "did", "do", "does", "doing", "down", "during",
+        "each", "few", "for", "from", "further", "had", "has", "have", "having", "he", "her",
+        "here", "hers", "herself", "him", "himself", "his", "how", "i", "if", "in", "into",
+        "is", "it", "its", "itself", "me", "more", "most", "my", "myself", "no", "nor", "not",
+        "of", "off", "on", "once", "only", "or", "other", "our", "ours", "ourselves", "out",
+        "over", "own", "same", "she", "should", "so", "some", "such", "than", "that", "the",
+        "their", "theirs", "them", "themselves", "then", "there", "these", "they", "this",
+        "those", "through", "to", "too", "under", "until", "up", "very", "was", "we", "were",
+        "what", "when", "where", "which", "while", "who", "whom", "why", "with", "you", "your",
+        "yours", "yourself", "yourselves", "tell", "acc", "according"
+    }
+
     def evaluate_candidate(
         self, query: str, candidate: RetrievalCandidate
     ) -> CandidateEvaluation:
         content = candidate.get_evaluable_content().lower()
-        query_terms = set(re.findall(r"\w+", query.lower()))
+        all_terms = re.findall(r"\w+", query.lower())
+        meaningful_terms = [t for t in all_terms if t not in self.STOPWORDS and len(t) > 1]
+        eval_terms = set(meaningful_terms) if meaningful_terms else set(all_terms)
 
-        if not query_terms:
+        if not eval_terms:
             overlap_ratio = 0.0
         else:
-            matches = sum(1 for term in query_terms if term in content)
-            overlap_ratio = matches / len(query_terms)
+            matches = sum(1 for term in eval_terms if term in content)
+            overlap_ratio = matches / len(eval_terms)
 
         # Combine candidate retrieval/reranker score with lexical overlap
-        base_score = candidate.retrieval_score if candidate.retrieval_score is not None else 0.5
-        if base_score > 1.0:
-            base_score = min(base_score / 10.0, 1.0)
-        elif base_score < 0.0:
-            base_score = max(0.0, (base_score + 10.0) / 20.0)
+        raw_score = candidate.retrieval_score if candidate.retrieval_score is not None else 0.5
+        
+        # Handle RRF reciprocal rank fusion scores (typically in range 0.005 - 0.04)
+        if 0.0 < raw_score <= 0.08:
+            # Map top RRF candidates (0.016+ rank 1 in single/multi modalities) to confident base [0.70 - 0.95]
+            base_score = min(1.0, 0.50 + (raw_score / 0.033) * 0.45)
+        elif raw_score > 1.0:
+            base_score = min(raw_score / 10.0, 1.0)
+        elif raw_score < 0.0:
+            base_score = max(0.0, (raw_score + 10.0) / 20.0)
+        else:
+            base_score = raw_score
 
         # Composite score
-        relevance_score = round(0.5 * base_score + 0.5 * overlap_ratio, 4)
+        relevance_score = round(0.4 * base_score + 0.6 * overlap_ratio, 4)
         is_relevant = relevance_score >= 0.5
 
         # Split content into sentences/strips for CRAG knowledge refinement
         sentences = [s.strip() for s in re.split(r"[.!?\n]+", content) if len(s.strip()) > 15]
-        relevant_strips = [s for s in sentences if any(term in s for term in query_terms)][:3]
+        relevant_strips = [s for s in sentences if any(term in s for term in eval_terms)][:3]
 
         return CandidateEvaluation(
             candidate_id=candidate.candidate_id,
             relevance_score=relevance_score,
             is_relevant=is_relevant,
             extracted_strips=relevant_strips,
-            notes=f"Heuristic scoring: lexical overlap {overlap_ratio:.2f}, retriever score {base_score:.2f}",
+            notes=f"Heuristic scoring: lexical overlap {overlap_ratio:.2f}, calibrated retriever score {base_score:.2f}",
         )
 
 

@@ -128,17 +128,38 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                   <FileText size={20} />
                 </div>
                 <div>
-                  <div
-                    style={{
-                      fontSize: '14.5px',
-                      fontWeight: 500,
-                      color: 'var(--text-100)',
-                      cursor: 'pointer',
-                    }}
-                    onClick={() => onViewDetail(doc.document_id)}
-                    title="Click to view manifest and page images"
-                  >
-                    {doc.filename}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <div
+                      style={{
+                        fontSize: '14.5px',
+                        fontWeight: 500,
+                        color: 'var(--text-100)',
+                        cursor: 'pointer',
+                      }}
+                      onClick={() => onViewDetail(doc.document_id)}
+                      title="Click to view manifest and page images"
+                    >
+                      {doc.filename}
+                    </div>
+                    {(doc.is_scanned || doc.ocr_needed) && (
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: 500,
+                          padding: '1px 6px',
+                          borderRadius: 'var(--radius-sm)',
+                          background: 'rgba(217, 119, 6, 0.12)',
+                          color: '#d97706',
+                          border: '1px solid rgba(217, 119, 6, 0.3)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                        }}
+                        title="This PDF contains scanned page images without extractable digital text. OCR is required."
+                      >
+                        ⚠️ Scanned PDF / OCR Required
+                      </span>
+                    )}
                   </div>
                   <div style={{ fontSize: '12px', color: 'var(--text-400)', marginTop: '2px' }}>
                     <code style={{ fontFamily: 'var(--font-mono)' }}>{doc.document_id}</code>

@@ -142,6 +142,9 @@ class DocumentSummary(BaseModel):
     chunk_count: int = Field(default=0, description="Number of text chunks")
     upload_timestamp: Optional[str] = Field(default=None, description="ISO timestamp of upload")
     file_size_bytes: Optional[int] = Field(default=None, description="PDF file size in bytes")
+    is_scanned: bool = Field(default=False, description="Whether document was identified as scanned images")
+    ocr_needed: bool = Field(default=False, description="Whether OCR is needed to extract textual content")
+    status: Optional[str] = Field(default=None, description="Document processing status")
 
     model_config = {"extra": "allow"}
 

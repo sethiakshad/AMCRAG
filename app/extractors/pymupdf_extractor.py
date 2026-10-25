@@ -77,9 +77,27 @@ class PyMuPDFExtractor(BaseExtractor):
             if page_count == 0:
                 warnings.append("Document has 0 pages.")
 
+            # Pass 1: Detect repetitive header/footer watermarks across pages
+            from collections import Counter
+            line_occurrences = Counter()
+            sample_count = min(page_count, 100)
+            for s_idx in range(sample_count):
+                p = doc[s_idx]
+                p_lines = [ln.strip() for ln in p.get_text().splitlines() if ln.strip()]
+                for unique_ln in set(p_lines):
+                    line_occurrences[unique_ln] += 1
+
+            watermark_lines = {
+                ln for ln, count in line_occurrences.items()
+                if count >= max(3, int(sample_count * 0.35)) and len(ln) < 160
+            }
+            if watermark_lines:
+                logger.info("Detected %d repetitive watermark/header lines in %s: %s", len(watermark_lines), pdf_path.name, list(watermark_lines)[:3])
+
             pages: List[PageExtraction] = []
             all_tables: List[ExtractedTable] = []
             total_doc_chars = 0
+            total_substantive_chars = 0
             scanned_pages_count = 0
             global_table_idx = 0
 
@@ -89,26 +107,38 @@ class PyMuPDFExtractor(BaseExtractor):
 
                 # 1. Text extraction and block inspection
                 text, headings = self._extract_text_and_headings(page)
-                char_count = len(text.strip())
+                
+                # Filter out repetitive watermarks to measure substantive content
+                clean_lines = [
+                    ln for ln in text.splitlines()
+                    if ln.strip() and ln.strip() not in watermark_lines
+                ]
+                substantive_text = "\n".join(clean_lines).strip()
+                substantive_chars = len(substantive_text)
+                
+                # If page only had watermarks, use substantive text to avoid indexing pure watermarks
+                page_text = substantive_text if substantive_chars > 0 else text.strip()
+                char_count = len(page_text)
                 total_doc_chars += char_count
+                total_substantive_chars += substantive_chars
 
                 # 2. Image inspection for scanned check
                 images = page.get_images(full=True)
                 has_images = len(images) > 0
 
-                is_empty = char_count == 0
+                is_empty = substantive_chars == 0
                 page_ocr_needed = False
 
                 # Scanned page detection heuristic
-                if char_count < self.settings.ocr_min_chars_per_page:
+                if substantive_chars < self.settings.ocr_min_chars_per_page:
                     if has_images or is_empty:
                         page_ocr_needed = True
                         scanned_pages_count += 1
                         logger.warning(
-                            "Page %d of %s has low text (%d chars) and %d images; flagging for OCR.",
+                            "Page %d of %s has low substantive text (%d chars) and %d images; flagging for OCR.",
                             page_num,
                             pdf_path.name,
-                            char_count,
+                            substantive_chars,
                             len(images),
                         )
 
@@ -119,7 +149,7 @@ class PyMuPDFExtractor(BaseExtractor):
                 pages.append(
                     PageExtraction(
                         page_number=page_num,
-                        text=text.strip(),
+                        text=page_text,
                         char_count=char_count,
                         has_images=has_images,
                         is_empty=is_empty,
@@ -134,12 +164,14 @@ class PyMuPDFExtractor(BaseExtractor):
             ocr_needed = False
 
             if page_count > 0:
-                if total_doc_chars < self.settings.ocr_min_doc_chars or scanned_pages_count == page_count:
+                is_scanned_ratio = (scanned_pages_count / page_count) >= 0.6
+                if total_substantive_chars < self.settings.ocr_min_doc_chars or is_scanned_ratio:
                     is_scanned = True
                     ocr_needed = True
                     msg = (
-                        f"Document '{pdf_path.name}' appears to be a scanned PDF or contains minimal text "
-                        f"({total_doc_chars} chars across {page_count} pages). OCR is required for text indexing."
+                        f"Document '{pdf_path.name}' appears to be a scanned PDF or contains minimal substantive text "
+                        f"({total_substantive_chars} characters across {page_count} pages; {scanned_pages_count}/{page_count} pages flagged). "
+                        "OCR is required for text indexing."
                     )
                     warnings.append(msg)
                     logger.warning(msg)

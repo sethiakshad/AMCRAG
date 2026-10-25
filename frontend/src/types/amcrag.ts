@@ -87,6 +87,9 @@ export interface DocumentSummary {
   chunk_count: number;
   upload_timestamp: string | null;
   file_size_bytes: number | null;
+  is_scanned?: boolean;
+  ocr_needed?: boolean;
+  status?: string;
 }
 
 export interface DocumentDetailResponse {
