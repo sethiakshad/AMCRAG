@@ -182,3 +182,24 @@ class BGEDenseEngine:
                 )
             )
         return candidates
+
+    def delete_document(self, document_id: str) -> int:
+        """Purges all vector points associated with document_id from Qdrant collection."""
+        try:
+            self.client.delete(
+                collection_name=self.collection_name,
+                points_selector=qmodels.FilterSelector(
+                    filter=qmodels.Filter(
+                        must=[
+                            qmodels.FieldCondition(
+                                key="document_id",
+                                match=qmodels.MatchValue(value=document_id)
+                            )
+                        ]
+                    )
+                )
+            )
+            return 1
+        except Exception as e:
+            print(f"[DenseEngine] Failed to delete document '{document_id}': {e}")
+            return 0

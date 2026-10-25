@@ -131,3 +131,22 @@ class BM25SparseEngine:
             self.bm25 = data["bm25"]
             self.corpus_chunks = data["corpus_chunks"]
         print(f"[SparseEngine] Loaded {len(self.corpus_chunks)} chunks from {path}")
+
+    def delete_document(self, document_id: str) -> None:
+        """Removes chunks matching document_id from BM25 corpus and reconstructs index."""
+        old_count = len(self.corpus_chunks)
+        self.corpus_chunks = [
+            c for c in self.corpus_chunks
+            if getattr(c, "document_id", "") != document_id
+        ]
+        if len(self.corpus_chunks) != old_count:
+            if self.corpus_chunks:
+                self.index_chunks(self.corpus_chunks, save_to_disk=bool(self.index_file_path))
+            else:
+                self.bm25 = None
+                if self.index_file_path and os.path.exists(self.index_file_path):
+                    try:
+                        os.remove(self.index_file_path)
+                    except OSError:
+                        pass
+

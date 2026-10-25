@@ -110,3 +110,10 @@ class HybridTextRetriever:
             top_k=effective_top_k
         )
         return fused_candidates
+
+    def delete_document(self, document_id: str) -> None:
+        """Purges document chunks from dense Qdrant collection and sparse BM25 index."""
+        if hasattr(self.dense_engine, "delete_document"):
+            self.dense_engine.delete_document(document_id)
+        if hasattr(self.sparse_engine, "delete_document"):
+            self.sparse_engine.delete_document(document_id)

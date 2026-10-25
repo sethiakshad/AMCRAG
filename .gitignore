@@ -75,3 +75,8 @@ test2/*
 # Local prework
 my prework/
 
+# Local API test scripts (contain local keys/benchmarks)
+geminiapitest.py
+testollamaapikey.py
+
+

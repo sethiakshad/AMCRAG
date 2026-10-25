@@ -1,8 +1,14 @@
 """Configuration management for Document Processing & Knowledge Base module."""
 
+import os
 from pathlib import Path
+from typing import Optional
+import dotenv
 from pydantic import Field
 from pydantic_settings import BaseSettings
+
+# Load environment variables from .env file if present
+dotenv.load_dotenv(override=False)
 
 
 class Settings(BaseSettings):
@@ -91,10 +97,72 @@ class Settings(BaseSettings):
         description="Whether to attempt Docling extraction first before falling back to PyMuPDF",
     )
 
+    # -----------------------------------------------------------------------
+    # LLM & Generation Settings (Google Gemini / Ollama Cloud / Fallback)
+    # -----------------------------------------------------------------------
+    gemini_api_key: Optional[str] = Field(
+        default=None,
+        description="Google Gemini API key. Can also be set via GEMINI_API_KEY or GOOGLE_API_KEY in .env",
+    )
+    gemini_model: str = Field(
+        default="gemini-1.5-flash",
+        description="Gemini model name to use (e.g. 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-3.8-flash')",
+    )
+    ollama_api_key: Optional[str] = Field(
+        default=None,
+        description="Ollama Cloud API key. Can also be set via OLLAMA_API_KEY or OLLAMA_CLOUD_API_KEY in .env",
+    )
+    ollama_model: str = Field(
+        default="gemma4:31b",
+        description="Ollama model name (e.g. 'gemma4:31b', 'llama3.2', 'deepseek-r1', 'gpt-oss:120b')",
+    )
+    ollama_base_url: str = Field(
+        default="https://ollama.com",
+        description="Ollama server URL ('https://ollama.com' for Ollama Cloud, or 'http://localhost:11434' for local)",
+    )
+    llm_provider: str = Field(
+        default="ollama",
+        description="Default LLM provider: 'ollama', 'gemini', 'openai', or 'mock'",
+    )
+    llm_temperature: float = Field(
+        default=0.2,
+        ge=0.0,
+        le=1.0,
+        description="LLM generation temperature (low value ensures factual grounding)",
+    )
+    llm_max_tokens: int = Field(
+        default=2048,
+        ge=64,
+        le=8192,
+        description="Maximum generation tokens",
+    )
+
     model_config = {
         "env_prefix": "AMCRAG_",
+        "env_file": ".env",
+        "extra": "ignore",
         "arbitrary_types_allowed": True,
     }
+
+    def get_gemini_api_key(self) -> Optional[str]:
+        """Retrieve Gemini API key checking Settings, GEMINI_API_KEY, GOOGLE_API_KEY, and AMCRAG_GEMINI_API_KEY."""
+        if self.gemini_api_key:
+            return self.gemini_api_key
+        return (
+            os.environ.get("GEMINI_API_KEY")
+            or os.environ.get("GOOGLE_API_KEY")
+            or os.environ.get("AMCRAG_GEMINI_API_KEY")
+        )
+
+    def get_ollama_api_key(self) -> Optional[str]:
+        """Retrieve Ollama Cloud API key checking Settings, OLLAMA_API_KEY, OLLAMA_CLOUD_API_KEY, and AMCRAG_OLLAMA_API_KEY."""
+        if self.ollama_api_key:
+            return self.ollama_api_key
+        return (
+            os.environ.get("OLLAMA_API_KEY")
+            or os.environ.get("OLLAMA_CLOUD_API_KEY")
+            or os.environ.get("AMCRAG_OLLAMA_API_KEY")
+        )
 
     def get_uploads_path(self) -> Path:
         """Resolve and ensure uploads directory exists."""

@@ -32,7 +32,15 @@ pillow>=10.0.0                    # PIL image loading for page images
 # transformers>=4.40.0            # HuggingFace model loading
 
 # ---------------------------------------------------------------------------
-# Person 4: CRAG (Corrective Retrieval-Augmented Generation)
+# Person 5: Pipeline Integration, Orchestration & FastAPI Gateway
 # ---------------------------------------------------------------------------
-# Optional T5 CRAG Evaluator (uses fast heuristic fallback if transformers is omitted)
-# transformers>=4.35.0
+fastapi>=0.110.0
+uvicorn>=0.27.0
+python-multipart>=0.0.9
+google-genai>=0.1.0
+openai>=1.0.0
+ollama>=0.4.0
+tiktoken>=0.7.0
+
+
+

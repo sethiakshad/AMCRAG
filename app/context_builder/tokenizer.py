@@ -46,19 +46,25 @@ class TokenCounter:
         except ImportError:
             pass
 
-        # Try HuggingFace transformers
-        try:
-            from transformers import AutoTokenizer  # type: ignore
-
+        # Try HuggingFace transformers (only if not an OpenAI tiktoken encoding)
+        TIKTOKEN_ENCODINGS = {"cl100k_base", "p50k_base", "r50k_base", "o200k_base"}
+        if self.tokenizer_name not in TIKTOKEN_ENCODINGS:
             try:
-                self._tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_name)
-                self._backend = "transformers"
-                logger.debug("Initialized HuggingFace tokenizer '%s'", self.tokenizer_name)
-                return
-            except Exception:
+                from transformers import AutoTokenizer  # type: ignore
+
+                try:
+                    self._tokenizer = AutoTokenizer.from_pretrained(
+                        self.tokenizer_name,
+                        local_files_only=False,
+                    )
+                    self._backend = "transformers"
+                    logger.debug("Initialized HuggingFace tokenizer '%s'", self.tokenizer_name)
+                    return
+                except Exception:
+                    pass
+            except ImportError:
                 pass
-        except ImportError:
-            pass
+
 
         # Fallback heuristic
         self._backend = "heuristic"

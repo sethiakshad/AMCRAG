@@ -3,6 +3,7 @@
 import hashlib
 import json
 import logging
+import time
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
@@ -30,10 +31,12 @@ class DuplicateDetector:
             return {}
 
     def _save_manifest(self, manifest: Dict[str, dict]) -> None:
-        """Persist updated manifest ledger to disk."""
+        """Persist updated manifest ledger to disk atomically."""
         try:
-            with self.manifest_path.open("w", encoding="utf-8") as f:
+            tmp_path = self.manifest_path.with_suffix(f".tmp_{hashlib.md5(str(time.time()).encode()).hexdigest()[:8]}")
+            with tmp_path.open("w", encoding="utf-8") as f:
                 json.dump(manifest, f, indent=2, ensure_ascii=False)
+            tmp_path.replace(self.manifest_path)
         except Exception as e:
             logger.error("Failed to save manifest %s: %s", self.manifest_path, e)
 

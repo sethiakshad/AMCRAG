@@ -24,6 +24,18 @@ from app.schemas.crag import (
 )
 
 
+from app.schemas.api import (
+    DeleteResponse,
+    DocumentDetailResponse,
+    DocumentSummary,
+    DocumentUploadResponse,
+    HealthResponse,
+    LatencyBreakdown,
+    QueryRequest,
+    QueryResponse,
+)
+
+
 class ScoredCandidate:
     """Import lazily or from root schemas."""
     pass
@@ -54,5 +66,14 @@ __all__ = [
     "CRAGResult",
     "EvidenceDecision",
     "EvidenceLabel",
+    # Person 5: API Schemas
+    "QueryRequest",
+    "QueryResponse",
+    "LatencyBreakdown",
+    "DocumentUploadResponse",
+    "DocumentSummary",
+    "DocumentDetailResponse",
+    "DeleteResponse",
+    "HealthResponse",
 ]
 
