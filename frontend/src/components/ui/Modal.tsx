@@ -1,6 +1,6 @@
 /**
  * src/components/ui/Modal.tsx
- * Accessible dialog modal with backdrop blur and header.
+ * Accessible dialog modal with quiet backdrop, hairline border, and Serif header.
  */
 
 import React, { useEffect } from 'react';
@@ -19,7 +19,7 @@ export const Modal: React.FC<ModalProps> = ({
   onClose,
   title,
   children,
-  maxWidth = '560px',
+  maxWidth = '520px',
 }) => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -34,29 +34,13 @@ export const Modal: React.FC<ModalProps> = ({
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div
-        className="glass-panel-elevated fade-in"
-        style={{
-          width: '100%',
-          maxWidth,
-          maxHeight: '85vh',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          padding: 0,
-        }}
+        className="modal-panel"
+        style={{ maxWidth }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '1.25rem 1.5rem',
-            borderBottom: '1px solid var(--border-subtle)',
-          }}
-        >
-          <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: '#ffffff' }}>{title}</h2>
+        <div className="modal-header">
+          <h2>{title}</h2>
           <button
             onClick={onClose}
             className="btn-icon"
@@ -67,7 +51,7 @@ export const Modal: React.FC<ModalProps> = ({
         </div>
 
         {/* Content body */}
-        <div style={{ padding: '1.5rem', overflowY: 'auto' }}>
+        <div className="modal-body">
           {children}
         </div>
       </div>

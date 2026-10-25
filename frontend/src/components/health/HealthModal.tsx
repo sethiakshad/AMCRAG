@@ -1,12 +1,12 @@
 /**
  * src/components/health/HealthModal.tsx
- * Subsystem diagnostic matrix modal displaying operational state and readiness.
+ * Subsystem diagnostic matrix modal displaying operational readiness.
+ * Styled with Claude paper aesthetic.
  */
 
 import React from 'react';
 import {
-  CheckCircle2,
-  XCircle,
+  Check,
   AlertTriangle,
   RotateCw,
   Server,
@@ -15,6 +15,7 @@ import {
   Eye,
   Clock,
   Sparkles,
+  X,
 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
@@ -43,41 +44,41 @@ export const HealthModal: React.FC<HealthModalProps> = ({
       id: 'vector_db',
       name: 'Qdrant Dense Vector Store',
       description: 'BAAI/bge-base-en-v1.5 dense semantic index & embeddings',
-      icon: <Database size={18} className="text-indigo-400" />,
+      icon: <Database size={16} />,
       status: health?.components?.vector_db ?? false,
     },
     {
       id: 'bm25',
       name: 'BM25 Lexical Keyword Engine',
-      description: 'Sparse exact-term retrieval & rank reciprocal fusion',
-      icon: <Server size={18} className="text-cyan-400" />,
+      description: 'Sparse exact-term retrieval & rank reciprocal fusion (RRF k=60)',
+      icon: <Server size={16} />,
       status: health?.components?.bm25 ?? false,
     },
     {
       id: 'crag',
       name: 'Adaptive CRAG Quality Gate',
       description: 'T5-Large confidence assessment & query reformulation loop',
-      icon: <Cpu size={18} className="text-purple-400" />,
+      icon: <Cpu size={16} />,
       status: health?.components?.crag ?? false,
     },
     {
       id: 'llm',
       name: 'Answer Generator LLM',
       description: 'Ollama Cloud (gemma4:31b) / Google Gemini API client',
-      icon: <Sparkles size={18} className="text-amber-400" />,
+      icon: <Sparkles size={16} />,
       status: health?.components?.llm ?? false,
     },
     {
       id: 'colpali',
       name: 'ColPali Multimodal Visual Bridge',
       description: '150 DPI page image late-interaction VLM search',
-      icon: <Eye size={18} className="text-pink-400" />,
+      icon: <Eye size={16} />,
       status: health?.components?.colpali ?? false,
     },
   ];
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="AMCRAG Subsystem Diagnostics" maxWidth="580px">
+    <Modal isOpen={isOpen} onClose={onClose} title="Subsystem Diagnostics" maxWidth="540px">
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         {/* Overall Status Banner */}
         <div
@@ -85,41 +86,36 @@ export const HealthModal: React.FC<HealthModalProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '1rem 1.25rem',
-            borderRadius: '10px',
-            background: isOffline
-              ? 'rgba(244, 63, 94, 0.1)'
-              : health?.status === 'healthy'
-              ? 'rgba(16, 185, 129, 0.1)'
-              : 'rgba(245, 158, 11, 0.1)',
-            border: `1px solid ${
-              isOffline
-                ? 'rgba(244, 63, 94, 0.3)'
-                : health?.status === 'healthy'
-                ? 'rgba(16, 185, 129, 0.3)'
-                : 'rgba(245, 158, 11, 0.3)'
-            }`,
+            padding: '14px 16px',
+            borderRadius: 'var(--radius-md)',
+            background: 'var(--bg-100)',
+            border: 'var(--border-w) solid var(--border-200)',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            {isOffline ? (
-              <XCircle size={28} style={{ color: '#f43f5e' }} />
-            ) : health?.status === 'healthy' ? (
-              <CheckCircle2 size={28} style={{ color: '#10b981' }} />
-            ) : (
-              <AlertTriangle size={28} style={{ color: '#f59e0b' }} />
-            )}
+            <span
+              style={{
+                width: '10px',
+                height: '10px',
+                borderRadius: '50%',
+                backgroundColor: isOffline
+                  ? 'var(--danger)'
+                  : health?.status === 'healthy'
+                  ? 'var(--success)'
+                  : 'var(--warning)',
+              }}
+            />
             <div>
-              <div style={{ fontWeight: 600, fontSize: '0.9375rem', color: '#ffffff' }}>
+              <div style={{ fontWeight: 500, fontSize: '14.5px', color: 'var(--text-100)' }}>
                 {isOffline
                   ? 'Backend Server Unreachable'
                   : health?.status === 'healthy'
                   ? 'All Subsystems Operational'
                   : 'System Running in Degraded Mode'}
               </div>
-              <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
+              <div style={{ fontSize: '12px', color: 'var(--text-300)', marginTop: '2px' }}>
                 {isOffline
-                  ? 'FastAPI server at http://localhost:8000 is not responding.'
+                  ? 'FastAPI server at http://127.0.0.1:8001 is not responding.'
                   : `Version ${health?.version || '1.0.0'} — Production Orchestrator`}
               </div>
             </div>
@@ -130,9 +126,9 @@ export const HealthModal: React.FC<HealthModalProps> = ({
             size="sm"
             onClick={onRefresh}
             isLoading={isLoading}
-            icon={<RotateCw size={14} />}
+            icon={<RotateCw size={13} />}
           >
-            Re-check
+            Refresh
           </Button>
         </div>
 
@@ -143,31 +139,31 @@ export const HealthModal: React.FC<HealthModalProps> = ({
               display: 'flex',
               alignItems: 'center',
               gap: '1.5rem',
-              padding: '0.75rem 1rem',
-              borderRadius: '8px',
-              background: 'rgba(255, 255, 255, 0.03)',
-              border: '1px solid var(--border-subtle)',
-              fontSize: '0.8125rem',
-              color: 'var(--text-secondary)',
+              padding: '10px 14px',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--bg-100)',
+              border: 'var(--border-w) solid var(--border-100)',
+              fontSize: '12.5px',
+              color: 'var(--text-200)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Clock size={15} style={{ color: 'var(--text-muted)' }} />
+              <Clock size={14} style={{ color: 'var(--text-300)' }} />
               <span>
-                Uptime: <strong style={{ color: '#ffffff' }}>{formatUptime(health.uptime_seconds)}</strong>
+                Uptime: <strong style={{ color: 'var(--text-100)', fontFamily: 'var(--font-mono)' }}>{formatUptime(health.uptime_seconds)}</strong>
               </span>
             </div>
             <div>
-              Gateway: <strong style={{ color: '#ffffff' }}>FastAPI (Uvicorn)</strong>
+              Gateway: <strong style={{ color: 'var(--text-100)' }}>FastAPI (Uvicorn)</strong>
             </div>
           </div>
         )}
 
         {/* Component Checklist */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
-          <h4 style={{ fontSize: '0.8125rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
-            Subsystem Status Matrix
-          </h4>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-400)' }}>
+            Pipeline Subsystems
+          </div>
 
           {componentsList.map((comp) => (
             <div
@@ -176,27 +172,21 @@ export const HealthModal: React.FC<HealthModalProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                padding: '0.875rem 1rem',
-                borderRadius: '8px',
-                background: 'rgba(255, 255, 255, 0.02)',
-                border: '1px solid var(--border-subtle)',
+                padding: '10px 14px',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--bg-100)',
+                border: 'var(--border-w) solid var(--border-200)',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div
-                  style={{
-                    padding: '8px',
-                    borderRadius: '8px',
-                    background: 'rgba(255, 255, 255, 0.05)',
-                  }}
-                >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ color: 'var(--text-300)' }}>
                   {comp.icon}
                 </div>
                 <div>
-                  <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#ffffff' }}>
+                  <div style={{ fontSize: '13.5px', fontWeight: 500, color: 'var(--text-100)' }}>
                     {comp.name}
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  <div style={{ fontSize: '12px', color: 'var(--text-300)' }}>
                     {comp.description}
                   </div>
                 </div>
@@ -204,22 +194,22 @@ export const HealthModal: React.FC<HealthModalProps> = ({
 
               <div>
                 {isOffline ? (
-                  <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Unknown</span>
+                  <span style={{ fontSize: '12px', color: 'var(--text-400)' }}>Unknown</span>
                 ) : comp.status ? (
                   <span
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '4px',
-                      fontSize: '0.75rem',
-                      fontWeight: 600,
-                      color: '#10b981',
-                      padding: '3px 8px',
-                      borderRadius: '4px',
-                      background: 'rgba(16, 185, 129, 0.1)',
+                      fontSize: '12px',
+                      fontWeight: 500,
+                      color: 'var(--success)',
+                      padding: '2px 7px',
+                      borderRadius: 'var(--radius-sm)',
+                      background: 'rgba(23, 163, 74, 0.08)',
                     }}
                   >
-                    <CheckCircle2 size={13} /> Ready
+                    <Check size={12} strokeWidth={2.5} /> Ready
                   </span>
                 ) : (
                   <span
@@ -227,15 +217,15 @@ export const HealthModal: React.FC<HealthModalProps> = ({
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '4px',
-                      fontSize: '0.75rem',
-                      fontWeight: 600,
-                      color: '#f59e0b',
-                      padding: '3px 8px',
-                      borderRadius: '4px',
-                      background: 'rgba(245, 158, 11, 0.1)',
+                      fontSize: '12px',
+                      fontWeight: 500,
+                      color: 'var(--warning)',
+                      padding: '2px 7px',
+                      borderRadius: 'var(--radius-sm)',
+                      background: 'rgba(234, 179, 8, 0.08)',
                     }}
                   >
-                    <AlertTriangle size={13} /> Fallback
+                    <AlertTriangle size={12} /> Standby
                   </span>
                 )}
               </div>

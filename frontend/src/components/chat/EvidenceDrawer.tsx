@@ -1,6 +1,7 @@
 /**
  * src/components/chat/EvidenceDrawer.tsx
  * Slide-over evidence inspector displaying factual provenance records and 150 DPI page images.
+ * Follows Claude design tokens with clean hairline cards and warm accents.
  */
 
 import React, { useState } from 'react';
@@ -11,7 +12,6 @@ import {
   Award,
   Maximize2,
   X,
-  ExternalLink,
 } from 'lucide-react';
 import { Drawer } from '../ui/Drawer';
 import { SourceMetadata } from '../../types/amcrag';
@@ -39,13 +39,13 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
       <Drawer
         isOpen={isOpen}
         onClose={onClose}
-        title="Evidence & Provenance Inspector"
+        title="Evidence & Citations"
         subtitle={`${sources.length} retrieved citation ${sources.length === 1 ? 'passage' : 'passages'} grounded in context`}
         width="540px"
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {sources.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
+            <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-400)' }}>
               No evidence sources attached to this query response.
             </div>
           ) : (
@@ -62,16 +62,16 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
                   key={src.evidence_id}
                   id={`evidence-${src.evidence_id}`}
                   style={{
-                    padding: '1.125rem',
-                    borderRadius: '12px',
-                    background: isSelected ? 'rgba(99, 102, 241, 0.12)' : 'rgba(255, 255, 255, 0.03)',
-                    border: `1px solid ${
-                      isSelected ? 'rgba(99, 102, 241, 0.5)' : 'var(--border-subtle)'
+                    padding: '14px 16px',
+                    borderRadius: 'var(--radius-lg)',
+                    background: isSelected ? 'var(--brand-tint)' : 'var(--bg-100)',
+                    border: `var(--border-w) solid ${
+                      isSelected ? 'var(--brand)' : 'var(--border-200)'
                     }`,
-                    transition: 'all 0.2s ease',
+                    transition: 'all var(--dur-base) ease',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '0.75rem',
+                    gap: '10px',
                   }}
                 >
                   {/* Evidence Header */}
@@ -79,19 +79,18 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span
                         style={{
-                          fontSize: '0.8125rem',
+                          fontSize: '12px',
                           fontFamily: 'var(--font-mono)',
-                          fontWeight: 700,
-                          padding: '2px 8px',
-                          borderRadius: '6px',
-                          background: 'rgba(99, 102, 241, 0.2)',
-                          color: '#a5b4fc',
-                          border: '1px solid rgba(99, 102, 241, 0.4)',
+                          fontWeight: 600,
+                          padding: '1px 7px',
+                          borderRadius: 'var(--radius-sm)',
+                          background: 'var(--brand)',
+                          color: 'var(--on-brand)',
                         }}
                       >
                         [{src.evidence_id}]
                       </span>
-                      <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#ffffff' }}>
+                      <span style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-100)' }}>
                         {src.document}
                       </span>
                     </div>
@@ -102,33 +101,33 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '3px',
-                          fontSize: '0.75rem',
-                          color: 'var(--text-muted)',
+                          fontSize: '12px',
+                          color: 'var(--text-300)',
                         }}
                         title="Fusion rank position"
                       >
-                        <Award size={13} style={{ color: '#f59e0b' }} /> Rank #{src.rank}
+                        <Award size={13} style={{ color: 'var(--brand-clay)' }} /> Rank #{src.rank}
                       </span>
                     )}
                   </div>
 
                   {/* Badges: Page and Modality */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     {src.page && (
                       <span
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '4px',
-                          fontSize: '0.75rem',
-                          padding: '2px 8px',
-                          borderRadius: '4px',
-                          background: 'rgba(255, 255, 255, 0.05)',
-                          color: 'var(--text-secondary)',
-                          border: '1px solid var(--border-subtle)',
+                          fontSize: '12px',
+                          padding: '1px 7px',
+                          borderRadius: 'var(--radius-sm)',
+                          background: 'var(--bg-300)',
+                          color: 'var(--text-200)',
+                          border: 'var(--border-w) solid var(--border-200)',
                         }}
                       >
-                        <Layers size={12} /> Page {src.page}
+                        <Layers size={11} /> Page {src.page}
                       </span>
                     )}
 
@@ -137,41 +136,34 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: '4px',
-                        fontSize: '0.75rem',
-                        padding: '2px 8px',
-                        borderRadius: '4px',
-                        background:
-                          src.type === 'visual'
-                            ? 'rgba(236, 72, 153, 0.1)'
-                            : 'rgba(56, 189, 248, 0.1)',
-                        color: src.type === 'visual' ? '#f472b6' : '#38bdf8',
-                        border: `1px solid ${
-                          src.type === 'visual'
-                            ? 'rgba(236, 72, 153, 0.3)'
-                            : 'rgba(56, 189, 248, 0.3)'
-                        }`,
+                        fontSize: '12px',
+                        padding: '1px 7px',
+                        borderRadius: 'var(--radius-sm)',
+                        background: 'var(--bg-300)',
+                        color: 'var(--text-200)',
+                        border: 'var(--border-w) solid var(--border-200)',
                       }}
                     >
-                      {src.type === 'visual' ? <ImageIcon size={12} /> : <FileText size={12} />}
-                      {src.type === 'visual' ? 'ColPali Visual Page' : 'Hybrid Text Chunk'}
+                      {src.type === 'visual' ? <ImageIcon size={11} /> : <FileText size={11} />}
+                      {src.type === 'visual' ? 'ColPali Visual Page' : 'Hybrid Text Passage'}
                     </span>
                   </div>
 
                   {/* Chunk Reference */}
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  <div style={{ fontSize: '12px', color: 'var(--text-300)' }}>
                     Chunk ID: <code style={{ fontFamily: 'var(--font-mono)' }}>{src.chunk_id}</code>
                   </div>
 
                   {/* Visual Page Image Preview if available */}
                   {matchedVisualPath && (
-                    <div style={{ marginTop: '0.25rem' }}>
+                    <div style={{ marginTop: '4px' }}>
                       <div
                         style={{
                           position: 'relative',
-                          borderRadius: '8px',
+                          borderRadius: 'var(--radius-md)',
                           overflow: 'hidden',
-                          border: '1px solid var(--border-medium)',
-                          background: '#090e17',
+                          border: 'var(--border-w) solid var(--border-200)',
+                          background: 'var(--bg-300)',
                           cursor: 'pointer',
                           maxHeight: '180px',
                         }}
@@ -185,6 +177,7 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
                             height: '180px',
                             objectFit: 'cover',
                             objectPosition: 'top',
+                            display: 'block',
                           }}
                         />
                         <div
@@ -194,14 +187,14 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            background: 'rgba(0, 0, 0, 0.5)',
+                            background: 'rgba(20, 20, 19, 0.45)',
                             gap: '6px',
                             color: '#ffffff',
-                            fontSize: '0.8125rem',
-                            fontWeight: 600,
+                            fontSize: '13px',
+                            fontWeight: 500,
                           }}
                         >
-                          <Maximize2 size={16} /> Click to Inspect Page Image
+                          <Maximize2 size={15} /> Inspect 150 DPI Page Image
                         </div>
                       </div>
                     </div>
@@ -219,7 +212,7 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0, 0, 0, 0.9)',
+            background: 'rgba(20, 20, 19, 0.85)',
             zIndex: 1100,
             display: 'flex',
             alignItems: 'center',
@@ -242,8 +235,8 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
               maxWidth: '90vw',
               maxHeight: '85vh',
               objectFit: 'contain',
-              borderRadius: '8px',
-              boxShadow: '0 10px 40px rgba(0,0,0,0.8)',
+              borderRadius: 'var(--radius-md)',
+              boxShadow: 'var(--shadow-modal)',
             }}
             onClick={(e) => e.stopPropagation()}
           />

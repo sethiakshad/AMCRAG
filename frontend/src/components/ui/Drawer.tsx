@@ -21,7 +21,7 @@ export const Drawer: React.FC<DrawerProps> = ({
   title,
   subtitle,
   children,
-  width = '500px',
+  width = '520px',
 }) => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -41,31 +41,18 @@ export const Drawer: React.FC<DrawerProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Drawer Header */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '1.25rem 1.5rem',
-            borderBottom: '1px solid var(--border-subtle)',
-            background: 'rgba(15, 23, 42, 0.4)',
-          }}
-        >
+        <div className="drawer-header">
           <div>
-            <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: '#ffffff' }}>{title}</h3>
-            {subtitle && (
-              <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                {subtitle}
-              </p>
-            )}
+            <h3>{title}</h3>
+            {subtitle && <p>{subtitle}</p>}
           </div>
           <button onClick={onClose} className="btn-icon" aria-label="Close drawer">
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
         {/* Drawer Body */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem' }}>
+        <div className="drawer-body">
           {children}
         </div>
       </div>

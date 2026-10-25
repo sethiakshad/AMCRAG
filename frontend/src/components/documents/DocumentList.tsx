@@ -1,6 +1,7 @@
 /**
  * src/components/documents/DocumentList.tsx
  * Searchable catalog table/cards of all indexed documents in the knowledge base.
+ * Aligned with Claude design system.
  */
 
 import React from 'react';
@@ -8,7 +9,6 @@ import {
   FileText,
   Layers,
   Trash2,
-  ExternalLink,
   MessageSquare,
   Search,
   HardDrive,
@@ -48,13 +48,14 @@ export const DocumentList: React.FC<DocumentListProps> = ({
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
-            padding: '0.5rem 0.875rem',
-            background: 'rgba(255, 255, 255, 0.03)',
-            border: '1px solid var(--border-subtle)',
+            padding: '6px 12px',
+            background: 'var(--bg-000)',
+            border: 'var(--border-w) solid var(--border-200)',
             borderRadius: 'var(--radius-md)',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.02)',
           }}
         >
-          <Search size={16} style={{ color: 'var(--text-muted)' }} />
+          <Search size={15} style={{ color: 'var(--text-300)' }} />
           <input
             type="text"
             value={searchQuery}
@@ -65,20 +66,15 @@ export const DocumentList: React.FC<DocumentListProps> = ({
               background: 'transparent',
               border: 'none',
               outline: 'none',
-              color: 'var(--text-primary)',
-              fontSize: '0.875rem',
+              color: 'var(--text-100)',
+              fontSize: '14px',
             }}
           />
           {searchQuery && (
             <button
               onClick={() => onSearchChange('')}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--text-muted)',
-                cursor: 'pointer',
-                fontSize: '0.75rem',
-              }}
+              className="btn-ghost"
+              style={{ fontSize: '12px', padding: '0 4px', color: 'var(--text-300)' }}
             >
               Clear
             </button>
@@ -88,64 +84,55 @@ export const DocumentList: React.FC<DocumentListProps> = ({
 
       {/* Catalog Listing */}
       {isLoading ? (
-        <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--text-muted)' }}>
-          Loading document catalog...
+        <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--text-300)', fontSize: '14px' }}>
+          Loading document catalog…
         </div>
       ) : documents.length === 0 ? (
         <div
           style={{
             padding: '3rem 1.5rem',
             textAlign: 'center',
-            background: 'rgba(255, 255, 255, 0.02)',
-            border: '1px dashed var(--border-subtle)',
-            borderRadius: '12px',
+            background: 'var(--bg-000)',
+            border: 'var(--border-w) dashed var(--border-200)',
+            borderRadius: 'var(--radius-lg)',
           }}
         >
-          <FileText size={36} style={{ color: 'var(--text-muted)', margin: '0 auto 0.75rem auto' }} />
-          <h4 style={{ fontSize: '1rem', fontWeight: 600, color: '#ffffff' }}>
+          <FileText size={32} style={{ color: 'var(--text-400)', margin: '0 auto 0.75rem auto' }} />
+          <h4 style={{ fontSize: '16px', fontWeight: 500, fontFamily: 'var(--font-serif)', color: 'var(--text-100)' }}>
             {searchQuery ? 'No matching documents found' : 'No documents indexed yet'}
           </h4>
-          <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
+          <p style={{ fontSize: '13px', color: 'var(--text-300)', marginTop: '4px' }}>
             {searchQuery
               ? 'Try adjusting your search terms.'
-              : 'Upload PDF research papers or reports to populate the knowledge base.'}
+              : 'Upload PDF research papers or financial reports to populate the knowledge base.'}
           </p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {documents.map((doc) => (
             <div
               key={doc.document_id}
-              className="glass-panel"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '1rem 1.25rem',
-                gap: '1rem',
-                flexWrap: 'wrap',
-                transition: 'border-color 0.2s ease',
-              }}
+              className="doc-card"
             >
               {/* Document Identity */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '240px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '220px' }}>
                 <div
                   style={{
-                    padding: '10px',
-                    borderRadius: '8px',
-                    background: 'rgba(99, 102, 241, 0.12)',
-                    color: '#818cf8',
+                    padding: '8px',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--bg-300)',
+                    color: 'var(--brand-clay)',
                     flexShrink: 0,
                   }}
                 >
-                  <FileText size={22} />
+                  <FileText size={20} />
                 </div>
                 <div>
                   <div
                     style={{
-                      fontSize: '0.9375rem',
-                      fontWeight: 600,
-                      color: '#ffffff',
+                      fontSize: '14.5px',
+                      fontWeight: 500,
+                      color: 'var(--text-100)',
                       cursor: 'pointer',
                     }}
                     onClick={() => onViewDetail(doc.document_id)}
@@ -153,40 +140,40 @@ export const DocumentList: React.FC<DocumentListProps> = ({
                   >
                     {doc.filename}
                   </div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  <div style={{ fontSize: '12px', color: 'var(--text-400)', marginTop: '2px' }}>
                     <code style={{ fontFamily: 'var(--font-mono)' }}>{doc.document_id}</code>
                   </div>
                 </div>
               </div>
 
-              {/* Statistics Pill Cluster */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
+              {/* Statistics Cluster */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '13px', color: 'var(--text-200)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }} title="Total Pages">
-                  <Layers size={14} style={{ color: 'var(--text-muted)' }} />
+                  <Layers size={13} style={{ color: 'var(--text-400)' }} />
                   <span><strong>{doc.page_count}</strong> pages</span>
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }} title="Indexed Text Chunks">
-                  <FileText size={14} style={{ color: '#818cf8' }} />
+                  <FileText size={13} style={{ color: 'var(--brand-clay)' }} />
                   <span><strong>{doc.chunk_count}</strong> chunks</span>
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }} title="File Size">
-                  <HardDrive size={14} style={{ color: 'var(--text-muted)' }} />
+                  <HardDrive size={13} style={{ color: 'var(--text-400)' }} />
                   <span>{formatBytes(doc.file_size_bytes)}</span>
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }} title="Upload Timestamp">
-                  <Calendar size={14} style={{ color: 'var(--text-muted)' }} />
+                  <Calendar size={13} style={{ color: 'var(--text-400)' }} />
                   <span>{formatRelativeTime(doc.upload_timestamp)}</span>
                 </div>
               </div>
 
               {/* Action Buttons */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Button
                   size="sm"
-                  variant="secondary"
+                  variant="primary"
                   onClick={() => onChatWithDoc(doc.document_id)}
                   title="Query this document specifically"
                   icon={<MessageSquare size={13} />}

@@ -1,6 +1,7 @@
 /**
  * src/components/documents/DocumentDetailModal.tsx
  * Manifest inspector and 150 DPI rendered page gallery modal.
+ * Styled with Claude paper aesthetic.
  */
 
 import React, { useEffect, useState } from 'react';
@@ -57,70 +58,70 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
 
   return (
     <>
-      <Modal isOpen={Boolean(docId)} onClose={onClose} title={detail?.filename || 'Document Manifest'} maxWidth="840px">
+      <Modal isOpen={Boolean(docId)} onClose={onClose} title={detail?.filename || 'Document Manifest'} maxWidth="780px">
         {isLoading ? (
-          <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--text-secondary)' }}>
-            Loading document manifest and page images...
+          <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--text-300)', fontSize: '14px' }}>
+            Loading document manifest and page images…
           </div>
         ) : error ? (
-          <div style={{ padding: '1rem', color: '#fb7185', background: 'rgba(244, 63, 94, 0.1)', borderRadius: '8px' }}>
+          <div style={{ padding: '12px 14px', color: 'var(--danger)', background: 'rgba(181, 51, 51, 0.08)', borderRadius: 'var(--radius-md)' }}>
             {error}
           </div>
         ) : detail ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             {/* Metadata Summary Banner */}
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-                gap: '12px',
-                padding: '1rem',
-                borderRadius: '10px',
-                background: 'rgba(255, 255, 255, 0.03)',
-                border: '1px solid var(--border-subtle)',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+                gap: '10px',
+                padding: '14px',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--bg-100)',
+                border: 'var(--border-w) solid var(--border-200)',
               }}
             >
               <div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--text-300)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <Layers size={13} /> Pages
                 </div>
-                <div style={{ fontSize: '1.125rem', fontWeight: 700, color: '#ffffff', marginTop: '2px' }}>
+                <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-100)', marginTop: '2px', fontFamily: 'var(--font-mono)' }}>
                   {detail.page_count}
                 </div>
               </div>
 
               <div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--text-300)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <FileText size={13} /> Text Chunks
                 </div>
-                <div style={{ fontSize: '1.125rem', fontWeight: 700, color: '#818cf8', marginTop: '2px' }}>
+                <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--brand-clay)', marginTop: '2px', fontFamily: 'var(--font-mono)' }}>
                   {detail.chunk_count}
                 </div>
               </div>
 
               <div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--text-300)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <ImageIcon size={13} /> Page Images
                 </div>
-                <div style={{ fontSize: '1.125rem', fontWeight: 700, color: '#38bdf8', marginTop: '2px' }}>
+                <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--brand)', marginTop: '2px', fontFamily: 'var(--font-mono)' }}>
                   {detail.image_count}
                 </div>
               </div>
 
               <div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--text-300)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <HardDrive size={13} /> File Size
                 </div>
-                <div style={{ fontSize: '0.9375rem', fontWeight: 600, color: '#ffffff', marginTop: '4px' }}>
+                <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-100)', marginTop: '4px' }}>
                   {formatBytes(detail.metadata?.file_size_bytes)}
                 </div>
               </div>
 
               <div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--text-300)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <Calendar size={13} /> Ingested
                 </div>
-                <div style={{ fontSize: '0.9375rem', fontWeight: 600, color: '#ffffff', marginTop: '4px' }}>
+                <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-100)', marginTop: '4px' }}>
                   {formatRelativeTime(detail.metadata?.upload_timestamp)}
                 </div>
               </div>
@@ -132,16 +133,16 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                padding: '0.75rem 1rem',
-                borderRadius: '8px',
-                background: 'rgba(0, 0, 0, 0.25)',
-                border: '1px solid var(--border-subtle)',
-                fontSize: '0.8125rem',
+                padding: '10px 14px',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--bg-100)',
+                border: 'var(--border-w) solid var(--border-200)',
+                fontSize: '13px',
               }}
             >
               <div>
-                <span style={{ color: 'var(--text-muted)' }}>Document ID: </span>
-                <code style={{ color: '#a5b4fc', fontFamily: 'var(--font-mono)' }}>{detail.document_id}</code>
+                <span style={{ color: 'var(--text-300)' }}>Document ID: </span>
+                <code style={{ color: 'var(--text-100)', fontFamily: 'var(--font-mono)' }}>{detail.document_id}</code>
               </div>
               {onChatWithDoc && (
                 <Button
@@ -165,13 +166,13 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  marginBottom: '0.75rem',
+                  marginBottom: '10px',
                 }}
               >
-                <h4 style={{ fontSize: '0.875rem', fontWeight: 600, color: '#ffffff' }}>
+                <h4 style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-100)' }}>
                   ColPali Visual Pages ({detail.page_images.length})
                 </h4>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                <span style={{ fontSize: '12px', color: 'var(--text-300)' }}>
                   150 DPI PNG rasterizations indexed for multimodal search
                 </span>
               </div>
@@ -181,10 +182,10 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
                   style={{
                     padding: '2rem',
                     textAlign: 'center',
-                    background: 'rgba(255, 255, 255, 0.02)',
-                    borderRadius: '8px',
-                    color: 'var(--text-muted)',
-                    fontSize: '0.8125rem',
+                    background: 'var(--bg-100)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--text-300)',
+                    fontSize: '13px',
                   }}
                 >
                   No page images discovered in runtime storage for this document.
@@ -194,10 +195,10 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
                   style={{
                     display: 'grid',
                     gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
-                    gap: '12px',
+                    gap: '10px',
                     maxHeight: '340px',
                     overflowY: 'auto',
-                    padding: '4px',
+                    padding: '2px',
                   }}
                 >
                   {detail.page_images.map((imgPath, idx) => {
@@ -207,15 +208,15 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
                         key={imgPath}
                         onClick={() => setLightboxIndex(idx)}
                         style={{
-                          borderRadius: '8px',
+                          borderRadius: 'var(--radius-md)',
                           overflow: 'hidden',
-                          border: '1px solid var(--border-subtle)',
-                          background: '#090e17',
+                          border: 'var(--border-w) solid var(--border-200)',
+                          background: 'var(--bg-100)',
                           cursor: 'pointer',
-                          transition: 'all 0.2s ease',
                           display: 'flex',
                           flexDirection: 'column',
                           position: 'relative',
+                          transition: 'border-color var(--dur-base)',
                         }}
                       >
                         <div
@@ -223,7 +224,7 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
                             aspectRatio: '0.707',
                             overflow: 'hidden',
                             position: 'relative',
-                            background: '#000',
+                            background: 'var(--bg-300)',
                           }}
                         >
                           <img
@@ -234,10 +235,8 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
                               width: '100%',
                               height: '100%',
                               objectFit: 'contain',
-                              transition: 'transform 0.2s ease',
                             }}
                             onError={(e) => {
-                              // Fallback display if static mount is not configured yet
                               (e.target as HTMLElement).style.display = 'none';
                             }}
                           />
@@ -248,22 +247,23 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              background: 'rgba(0, 0, 0, 0.4)',
+                              background: 'rgba(20, 20, 19, 0.4)',
                               opacity: 0,
-                              transition: 'opacity 0.2s ease',
+                              transition: 'opacity var(--dur-base) ease',
                             }}
-                            className="hover:opacity-100"
+                            onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
+                            onMouseLeave={(e) => (e.currentTarget.style.opacity = '0')}
                           >
-                            <Maximize2 size={18} color="#fff" />
+                            <Maximize2 size={16} color="#fff" />
                           </div>
                         </div>
                         <div
                           style={{
                             padding: '4px 6px',
-                            fontSize: '0.75rem',
+                            fontSize: '12px',
                             textAlign: 'center',
-                            background: 'rgba(255, 255, 255, 0.03)',
-                            color: 'var(--text-secondary)',
+                            background: 'var(--bg-200)',
+                            color: 'var(--text-200)',
                             fontWeight: 500,
                           }}
                         >
@@ -285,7 +285,7 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0, 0, 0, 0.92)',
+            background: 'rgba(20, 20, 19, 0.88)',
             zIndex: 1100,
             display: 'flex',
             flexDirection: 'column',
@@ -307,7 +307,7 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
               zIndex: 1110,
             }}
           >
-            <span style={{ color: '#fff', fontSize: '0.875rem', fontWeight: 500 }}>
+            <span style={{ color: '#fff', fontSize: '13px', fontWeight: 500 }}>
               Page {lightboxIndex + 1} of {detail.page_images.length}
             </span>
             <button
@@ -315,7 +315,7 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
               className="btn-icon"
               style={{ color: '#fff', background: 'rgba(255,255,255,0.1)' }}
             >
-              <X size={20} />
+              <X size={18} />
             </button>
           </div>
 
@@ -332,10 +332,11 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
                 left: '1rem',
                 color: '#fff',
                 background: 'rgba(255,255,255,0.15)',
-                padding: '12px',
+                width: '40px',
+                height: '40px',
               }}
             >
-              <ChevronLeft size={28} />
+              <ChevronLeft size={24} />
             </button>
           )}
 
@@ -351,10 +352,11 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
                 right: '1rem',
                 color: '#fff',
                 background: 'rgba(255,255,255,0.15)',
-                padding: '12px',
+                width: '40px',
+                height: '40px',
               }}
             >
-              <ChevronRight size={28} />
+              <ChevronRight size={24} />
             </button>
           )}
 
@@ -366,8 +368,8 @@ export const DocumentDetailModal: React.FC<DocumentDetailModalProps> = ({
               maxWidth: '90vw',
               maxHeight: '85vh',
               objectFit: 'contain',
-              boxShadow: '0 10px 40px rgba(0,0,0,0.8)',
-              borderRadius: '6px',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+              borderRadius: 'var(--radius-md)',
             }}
             onClick={(e) => e.stopPropagation()}
           />

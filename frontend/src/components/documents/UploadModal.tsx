@@ -1,10 +1,11 @@
 /**
  * src/components/documents/UploadModal.tsx
  * Drag-and-drop PDF uploader with size bounds checking, format validation, and force re-index option.
+ * Styled with Claude paper aesthetic.
  */
 
 import React, { useRef, useState } from 'react';
-import { UploadCloud, FileText, CheckCircle2, AlertCircle, Info, RefreshCw } from 'lucide-react';
+import { UploadCloud, FileText, Check, AlertCircle, Info, RefreshCw } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { DocumentUploadResponse } from '../../types/amcrag';
@@ -93,40 +94,38 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} title="Ingest PDF Document" maxWidth="560px">
+    <Modal isOpen={isOpen} onClose={handleClose} title="Ingest PDF Document" maxWidth="520px">
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         {/* Upload Result Notification */}
         {uploadResult ? (
           <div
             style={{
-              padding: '1.25rem',
-              borderRadius: '10px',
-              background: uploadResult.status === 'cached'
-                ? 'rgba(99, 102, 241, 0.1)'
-                : 'rgba(16, 185, 129, 0.1)',
-              border: `1px solid ${
+              padding: '16px',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--bg-100)',
+              border: `var(--border-w) solid ${
                 uploadResult.status === 'cached'
-                  ? 'rgba(99, 102, 241, 0.3)'
-                  : 'rgba(16, 185, 129, 0.3)'
+                  ? 'var(--border-200)'
+                  : 'rgba(23, 163, 74, 0.3)'
               }`,
               display: 'flex',
               flexDirection: 'column',
-              gap: '0.75rem',
+              gap: '12px',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               {uploadResult.status === 'cached' ? (
-                <Info size={24} style={{ color: '#818cf8' }} />
+                <Info size={22} style={{ color: 'var(--brand-clay)' }} />
               ) : (
-                <CheckCircle2 size={24} style={{ color: '#10b981' }} />
+                <Check size={22} strokeWidth={2.5} style={{ color: 'var(--success)' }} />
               )}
               <div>
-                <div style={{ fontWeight: 600, color: '#ffffff' }}>
+                <div style={{ fontWeight: 500, color: 'var(--text-100)', fontSize: '14.5px' }}>
                   {uploadResult.status === 'cached'
                     ? 'Document Already Cached'
                     : 'Document Indexed Successfully'}
                 </div>
-                <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
+                <div style={{ fontSize: '13px', color: 'var(--text-300)' }}>
                   {uploadResult.message}
                 </div>
               </div>
@@ -137,24 +136,24 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                 display: 'grid',
                 gridTemplateColumns: 'repeat(3, 1fr)',
                 gap: '8px',
-                background: 'rgba(0, 0, 0, 0.25)',
-                padding: '0.75rem',
-                borderRadius: '8px',
-                fontSize: '0.75rem',
+                background: 'var(--bg-300)',
+                padding: '10px',
+                borderRadius: 'var(--radius-md)',
+                fontSize: '12px',
                 textAlign: 'center',
               }}
             >
               <div>
-                <span style={{ color: 'var(--text-muted)', display: 'block' }}>Pages</span>
-                <strong style={{ color: '#ffffff', fontSize: '1rem' }}>{uploadResult.page_count}</strong>
+                <span style={{ color: 'var(--text-300)', display: 'block' }}>Pages</span>
+                <strong style={{ color: 'var(--text-100)', fontSize: '15px' }}>{uploadResult.page_count}</strong>
               </div>
               <div>
-                <span style={{ color: 'var(--text-muted)', display: 'block' }}>Text Chunks</span>
-                <strong style={{ color: '#ffffff', fontSize: '1rem' }}>{uploadResult.chunk_count}</strong>
+                <span style={{ color: 'var(--text-300)', display: 'block' }}>Text Chunks</span>
+                <strong style={{ color: 'var(--text-100)', fontSize: '15px' }}>{uploadResult.chunk_count}</strong>
               </div>
               <div>
-                <span style={{ color: 'var(--text-muted)', display: 'block' }}>150 DPI Images</span>
-                <strong style={{ color: '#ffffff', fontSize: '1rem' }}>{uploadResult.image_count}</strong>
+                <span style={{ color: 'var(--text-300)', display: 'block' }}>150 DPI Images</span>
+                <strong style={{ color: 'var(--text-100)', fontSize: '15px' }}>{uploadResult.image_count}</strong>
               </div>
             </div>
 
@@ -174,13 +173,13 @@ export const UploadModal: React.FC<UploadModalProps> = ({
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
               style={{
-                border: `2px dashed ${dragOver ? 'var(--brand-primary)' : 'var(--border-medium)'}`,
-                borderRadius: '12px',
-                padding: '2.5rem 1.5rem',
+                border: `1.5px dashed ${dragOver ? 'var(--brand)' : 'var(--border-300)'}`,
+                borderRadius: 'var(--radius-lg)',
+                padding: '2rem 1.5rem',
                 textAlign: 'center',
                 cursor: 'pointer',
-                background: dragOver ? 'rgba(99, 102, 241, 0.08)' : 'rgba(255, 255, 255, 0.02)',
-                transition: 'all 0.2s ease',
+                background: dragOver ? 'var(--brand-tint)' : 'var(--bg-100)',
+                transition: 'all var(--dur-base) ease',
               }}
             >
               <input
@@ -191,16 +190,16 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                 onChange={handleFileChange}
               />
               <UploadCloud
-                size={40}
+                size={36}
                 style={{
-                  color: dragOver ? 'var(--brand-primary)' : 'var(--text-muted)',
-                  margin: '0 auto 0.75rem auto',
+                  color: dragOver ? 'var(--brand)' : 'var(--text-300)',
+                  margin: '0 auto 8px auto',
                 }}
               />
-              <div style={{ fontWeight: 600, color: '#ffffff', marginBottom: '4px' }}>
-                Click to browse or drop your PDF here
+              <div style={{ fontWeight: 500, color: 'var(--text-100)', marginBottom: '4px', fontSize: '14.5px' }}>
+                Select a PDF file or drag it here
               </div>
-              <div style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+              <div style={{ fontSize: '12.5px', color: 'var(--text-300)' }}>
                 Accepts PDF files up to 100 MB. Extracts text, tables, and renders 150 DPI page PNGs for ColPali.
               </div>
             </div>
@@ -212,19 +211,19 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  padding: '0.75rem 1rem',
-                  borderRadius: '8px',
-                  background: 'rgba(99, 102, 241, 0.1)',
-                  border: '1px solid rgba(99, 102, 241, 0.3)',
+                  padding: '10px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--bg-100)',
+                  border: 'var(--border-w) solid var(--border-200)',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <FileText size={20} style={{ color: '#818cf8' }} />
+                  <FileText size={18} style={{ color: 'var(--brand-clay)' }} />
                   <div>
-                    <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#ffffff' }}>
+                    <div style={{ fontSize: '13.5px', fontWeight: 500, color: 'var(--text-100)' }}>
                       {selectedFile.name}
                     </div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    <div style={{ fontSize: '12px', color: 'var(--text-300)' }}>
                       {formatBytes(selectedFile.size)}
                     </div>
                   </div>
@@ -248,8 +247,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                fontSize: '0.8125rem',
-                color: 'var(--text-secondary)',
+                fontSize: '13px',
+                color: 'var(--text-200)',
                 cursor: 'pointer',
               }}
             >
@@ -257,10 +256,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                 type="checkbox"
                 checked={forceReindex}
                 onChange={(e) => setForceReindex(e.target.checked)}
-                style={{ accentColor: 'var(--brand-primary)', width: '16px', height: '16px' }}
+                style={{ accentColor: 'var(--brand)', width: '16px', height: '16px' }}
               />
               <span>
-                <strong>Force Re-index:</strong> Overwrite cache and re-extract text chunks and page images even if already uploaded.
+                <strong>Force Re-index:</strong> Overwrite cache and re-extract text chunks and page images.
               </span>
             </label>
 
@@ -271,21 +270,21 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
-                  padding: '0.75rem',
-                  borderRadius: '8px',
-                  background: 'rgba(244, 63, 94, 0.1)',
-                  border: '1px solid rgba(244, 63, 94, 0.3)',
-                  color: '#fb7185',
-                  fontSize: '0.8125rem',
+                  padding: '10px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'rgba(181, 51, 51, 0.08)',
+                  border: 'var(--border-w) solid rgba(181, 51, 51, 0.3)',
+                  color: 'var(--danger)',
+                  fontSize: '13px',
                 }}
               >
-                <AlertCircle size={16} />
+                <AlertCircle size={15} />
                 <span>{clientError}</span>
               </div>
             )}
 
             {/* Submit Action */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px', paddingTop: '10px', borderTop: 'var(--border-w) solid var(--border-100)' }}>
               <Button variant="secondary" onClick={handleClose} disabled={isUploading}>
                 Cancel
               </Button>
@@ -294,9 +293,9 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                 onClick={handleSubmit}
                 disabled={!selectedFile || isUploading}
                 isLoading={isUploading}
-                icon={<RefreshCw size={15} />}
+                icon={<RefreshCw size={14} />}
               >
-                {isUploading ? 'Extracting & Indexing...' : 'Upload & Process'}
+                {isUploading ? 'Extracting & Indexing…' : 'Upload & Process'}
               </Button>
             </div>
           </>

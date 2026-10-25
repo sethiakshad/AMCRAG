@@ -1,10 +1,10 @@
 /**
  * src/components/health/HealthIndicator.tsx
- * Status indicator pill in the navbar showing live backend connection state.
+ * Status indicator pill showing live backend connection state.
+ * Follows Claude design tokens (no neon glow).
  */
 
 import React, { useState } from 'react';
-import { Activity } from 'lucide-react';
 import { HealthResponse } from '../../types/amcrag';
 import { HealthModal } from './HealthModal';
 
@@ -23,27 +23,19 @@ export const HealthIndicator: React.FC<HealthIndicatorProps> = ({
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  let statusLabel = 'Connecting...';
-  let dotColor = '#94a3b8';
-  let badgeBorder = 'rgba(255, 255, 255, 0.1)';
-  let badgeBg = 'rgba(255, 255, 255, 0.04)';
+  let statusLabel = 'Connecting…';
+  let dotColor = 'var(--text-400)';
 
   if (isOffline) {
     statusLabel = 'Offline';
-    dotColor = '#f43f5e';
-    badgeBorder = 'rgba(244, 63, 94, 0.3)';
-    badgeBg = 'rgba(244, 63, 94, 0.1)';
+    dotColor = 'var(--danger)';
   } else if (health) {
     if (health.status === 'healthy') {
-      statusLabel = 'System Online';
-      dotColor = '#10b981';
-      badgeBorder = 'rgba(16, 185, 129, 0.3)';
-      badgeBg = 'rgba(16, 185, 129, 0.08)';
+      statusLabel = 'Online';
+      dotColor = 'var(--success)';
     } else {
       statusLabel = 'Degraded';
-      dotColor = '#f59e0b';
-      badgeBorder = 'rgba(245, 158, 11, 0.3)';
-      badgeBg = 'rgba(245, 158, 11, 0.08)';
+      dotColor = 'var(--warning)';
     }
   }
 
@@ -54,28 +46,26 @@ export const HealthIndicator: React.FC<HealthIndicatorProps> = ({
         style={{
           display: 'inline-flex',
           alignItems: 'center',
-          gap: '8px',
-          padding: '5px 12px',
-          borderRadius: '9999px',
-          background: badgeBg,
-          border: `1px solid ${badgeBorder}`,
-          color: 'var(--text-primary)',
-          fontSize: '0.8125rem',
+          gap: '7px',
+          padding: '3px 10px',
+          borderRadius: 'var(--radius-full)',
+          background: 'var(--bg-300)',
+          border: 'var(--border-w) solid var(--border-200)',
+          color: 'var(--text-200)',
+          fontSize: '12px',
           cursor: 'pointer',
-          transition: 'all 0.2s ease',
+          transition: 'all var(--dur-base)',
         }}
-        title="Click to view subsystem health diagnostics"
+        title="View AMCRAG pipeline subsystem diagnostics"
       >
         <span
           style={{
-            width: '8px',
-            height: '8px',
+            width: '7px',
+            height: '7px',
             borderRadius: '50%',
             backgroundColor: dotColor,
-            boxShadow: `0 0 8px ${dotColor}`,
           }}
         />
-        <Activity size={13} style={{ color: dotColor }} />
         <span style={{ fontWeight: 500 }}>{statusLabel}</span>
       </button>
 

@@ -1,6 +1,6 @@
 /**
  * src/components/ui/Badge.tsx
- * Status and label badge component.
+ * Status and label badge component adhering to Claude design tokens.
  */
 
 import React from 'react';
@@ -22,50 +22,53 @@ export const Badge: React.FC<BadgeProps> = ({
   className = '',
   onClick,
 }) => {
-  const variantStyles = {
+  const variantStyles: Record<string, React.CSSProperties> = {
     brand: {
-      background: 'rgba(99, 102, 241, 0.15)',
-      color: '#a5b4fc',
-      border: '1px solid rgba(99, 102, 241, 0.35)',
+      background: 'var(--brand-tint)',
+      color: 'var(--brand)',
+      border: 'var(--border-w) solid rgba(201, 100, 66, 0.25)',
     },
     success: {
-      background: 'var(--crag-correct-bg)',
-      color: 'var(--crag-correct-text)',
-      border: '1px solid var(--crag-correct-border)',
+      background: 'rgba(23, 163, 74, 0.08)',
+      color: 'var(--success)',
+      border: 'var(--border-w) solid rgba(23, 163, 74, 0.25)',
     },
     warning: {
-      background: 'var(--crag-ambiguous-bg)',
-      color: 'var(--crag-ambiguous-text)',
-      border: '1px solid var(--crag-ambiguous-border)',
+      background: 'rgba(234, 179, 8, 0.08)',
+      color: 'var(--warning)',
+      border: 'var(--border-w) solid rgba(234, 179, 8, 0.25)',
     },
     error: {
-      background: 'var(--crag-incorrect-bg)',
-      color: 'var(--crag-incorrect-text)',
-      border: '1px solid var(--crag-incorrect-border)',
+      background: 'rgba(181, 51, 51, 0.08)',
+      color: 'var(--danger)',
+      border: 'var(--border-w) solid rgba(181, 51, 51, 0.25)',
     },
     neutral: {
-      background: 'rgba(255, 255, 255, 0.06)',
-      color: 'var(--text-secondary)',
-      border: '1px solid var(--border-subtle)',
+      background: 'var(--bg-300)',
+      color: 'var(--text-200)',
+      border: 'var(--border-w) solid var(--border-200)',
     },
   };
 
-  const sizeStyles = {
-    sm: { padding: '2px 6px', fontSize: '0.7rem' },
-    md: { padding: '3px 9px', fontSize: '0.75rem' },
+  const sizeStyles: Record<string, React.CSSProperties> = {
+    sm: { padding: '1px 6px', fontSize: '11px' },
+    md: { padding: '2px 8px', fontSize: '12px' },
   };
 
   return (
     <span
-      className={`inline-flex items-center gap-1 font-medium rounded ${className}`}
+      className={className}
       style={{
         ...variantStyles[variant],
         ...sizeStyles[size],
-        borderRadius: '6px',
+        borderRadius: 'var(--radius-sm)',
+        fontFamily: 'var(--font-mono)',
+        fontWeight: 500,
         cursor: onClick ? 'pointer' : 'default',
         display: 'inline-flex',
         alignItems: 'center',
         gap: '4px',
+        transition: 'all var(--dur-base)',
       }}
       onClick={onClick}
     >

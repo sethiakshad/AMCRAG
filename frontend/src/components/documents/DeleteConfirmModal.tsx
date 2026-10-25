@@ -1,6 +1,7 @@
 /**
  * src/components/documents/DeleteConfirmModal.tsx
  * Destructive action confirmation dialog for removing documents from knowledge base.
+ * Styled with Claude paper aesthetic.
  */
 
 import React, { useState } from 'react';
@@ -42,26 +43,26 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Delete Document" maxWidth="460px">
+    <Modal isOpen={isOpen} onClose={onClose} title="Delete Document" maxWidth="440px">
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
           <div
             style={{
-              padding: '10px',
+              padding: '8px',
               borderRadius: '50%',
-              background: 'rgba(244, 63, 94, 0.15)',
-              color: '#fb7185',
+              background: 'rgba(181, 51, 51, 0.1)',
+              color: 'var(--danger)',
               flexShrink: 0,
             }}
           >
-            <AlertTriangle size={24} />
+            <AlertTriangle size={20} />
           </div>
           <div>
-            <h4 style={{ fontSize: '0.9375rem', fontWeight: 600, color: '#ffffff' }}>
+            <h4 style={{ fontSize: '15px', fontWeight: 500, color: 'var(--text-100)' }}>
               Purge from Knowledge Base?
             </h4>
-            <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: '4px', lineHeight: 1.5 }}>
-              Are you sure you want to delete <strong style={{ color: '#ffffff' }}>{filename || docId}</strong>?
+            <p style={{ fontSize: '13px', color: 'var(--text-300)', marginTop: '4px', lineHeight: 1.5 }}>
+              Are you sure you want to delete <strong style={{ color: 'var(--text-100)' }}>{filename || docId}</strong>?
               This action permanently purges all extracted text chunks, Qdrant dense vector embeddings, BM25 indices, and rendered 150 DPI page images.
             </p>
           </div>
@@ -70,19 +71,19 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
         {error && (
           <div
             style={{
-              padding: '0.75rem',
-              borderRadius: '8px',
-              background: 'rgba(244, 63, 94, 0.1)',
-              border: '1px solid rgba(244, 63, 94, 0.3)',
-              color: '#fb7185',
-              fontSize: '0.8125rem',
+              padding: '10px 14px',
+              borderRadius: 'var(--radius-md)',
+              background: 'rgba(181, 51, 51, 0.08)',
+              border: 'var(--border-w) solid rgba(181, 51, 51, 0.3)',
+              color: 'var(--danger)',
+              fontSize: '13px',
             }}
           >
             {error}
           </div>
         )}
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px', paddingTop: '10px', borderTop: 'var(--border-w) solid var(--border-100)' }}>
           <Button variant="secondary" onClick={onClose} disabled={isDeleting}>
             Cancel
           </Button>
@@ -90,7 +91,7 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
             variant="danger"
             onClick={handleDelete}
             isLoading={isDeleting}
-            icon={<Trash2 size={15} />}
+            icon={<Trash2 size={14} />}
           >
             Confirm Delete
           </Button>

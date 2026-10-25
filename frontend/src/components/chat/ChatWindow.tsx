@@ -1,10 +1,12 @@
 /**
  * src/components/chat/ChatWindow.tsx
- * Full conversational QA interface integrating streaming responses, provenance drawer, and settings.
+ * Full conversational QA interface adhering to Claude.ai:
+ * - Empty state: Centered greeting in Newsreader Serif + Starburst mark + centered composer + suggestion chips.
+ * - Conversation state: Centered 768px reading column + pinned floating composer.
  */
 
 import React, { useRef, useEffect, useState } from 'react';
-import { Sparkles, MessageSquare, BookOpen, Layers, ShieldCheck } from 'lucide-react';
+import { MessageSquare, Sparkles, Filter, X } from 'lucide-react';
 import { MessageItem } from './MessageItem';
 import { MessageInput } from './MessageInput';
 import { EvidenceDrawer } from './EvidenceDrawer';
@@ -19,10 +21,25 @@ import {
   SourceMetadata,
 } from '../../types/amcrag';
 
+// Geometric starburst mark in terracotta
+const StarburstIcon: React.FC<{ size?: number; className?: string }> = ({ size = 28, className = '' }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    className={className}
+    style={{ display: 'inline-block', verticalAlign: 'middle', color: 'var(--brand-clay)' }}
+  >
+    <path d="M12 2L13.8 8.2L20 6.5L16.2 11.5L22 14.5L15.8 16.5L17.5 22.5L12 18.5L6.5 22.5L8.2 16.5L2 14.5L7.8 11.5L4 6.5L10.2 8.2L12 2Z" />
+  </svg>
+);
+
 export interface ChatWindowProps {
   availableDocuments: DocumentSummary[];
   preselectedDocId?: string | null;
   onClearPreselectedDoc?: () => void;
+  onStartNewChat?: () => void;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({
@@ -62,9 +79,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { streamState, startStream, stopStream } = useSSEQuery();
 
-  // Scroll to bottom when messages update or streaming tokens arrive
+  // Scroll to bottom when messages update
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messages.length > 0) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages, streamState.accumulatedAnswer]);
 
   const handleOpenCitation = (evidenceId: string, sources: SourceMetadata[]) => {
@@ -80,9 +99,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     setIsDrawerOpen(true);
   };
 
-  const handleSend = async () => {
-    const trimmed = input.trim();
-    if (!trimmed) return;
+  const handleSendQuery = async (queryText?: string) => {
+    const textToSend = (queryText || input).trim();
+    if (!textToSend) return;
 
     const userMessageId = `msg-user-${Date.now()}`;
     const assistantMessageId = `msg-asst-${Date.now() + 1}`;
@@ -90,7 +109,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     const userMsg: ChatMessage = {
       id: userMessageId,
       role: 'user',
-      content: trimmed,
+      content: textToSend,
       timestamp: new Date(),
     };
 
@@ -106,7 +125,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     setInput('');
 
     const queryPayload = {
-      query: trimmed,
+      query: textToSend,
       model_modality: modality,
       top_k: settings.topK,
       token_budget: settings.tokenBudget,
@@ -189,198 +208,136 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     }
   };
 
+  // Time-based friendly greeting
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
+  };
+
   const starterQueries = [
     'What is the lock-in period and tax deduction rule for ELSS mutual funds?',
     'Summarize the primary revenue growth drivers disclosed in the report.',
     'Compare the risk factors outlined between quarterly periods.',
-    'What key trends and data points are illustrated in the performance chart?',
+    'Extract key trends and figures illustrated in the performance charts.',
   ];
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: 'calc(100vh - 120px)',
-        maxWidth: '960px',
-        width: '100%',
-        margin: '0 auto',
-        position: 'relative',
-      }}
-    >
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
       {/* Active Document Filter Notification Pill if restricted */}
       {settings.selectedDocIds.length > 0 && (
         <div
           style={{
+            maxWidth: '48rem',
+            width: '100%',
+            margin: '8px auto 0',
+            padding: '6px 14px',
+            borderRadius: 'var(--radius-md)',
+            background: 'var(--brand-tint)',
+            border: 'var(--border-w) solid rgba(201, 100, 66, 0.25)',
+            fontSize: '13px',
+            color: 'var(--text-100)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '6px 14px',
-            marginBottom: '0.75rem',
-            borderRadius: '8px',
-            background: 'rgba(99, 102, 241, 0.12)',
-            border: '1px solid rgba(99, 102, 241, 0.3)',
-            fontSize: '0.8125rem',
-            color: '#c7d2fe',
           }}
         >
-          <span>
-            Filtering query scope to <strong>{settings.selectedDocIds.length}</strong> selected document(s)
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Filter size={13} style={{ color: 'var(--brand)' }} />
+            <span>
+              Searching restricted to <strong>{settings.selectedDocIds.length}</strong> document(s)
+            </span>
+          </div>
           <button
             onClick={() => {
               setSettings((prev) => ({ ...prev, selectedDocIds: [] }));
               if (onClearPreselectedDoc) onClearPreselectedDoc();
             }}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#ffffff',
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              textDecoration: 'underline',
-            }}
+            className="btn-ghost"
+            style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '3px' }}
           >
-            Clear Filter (Search All)
+            <X size={12} />
+            <span>Clear filter</span>
           </button>
         </div>
       )}
 
-      {/* Messages Scroll Area */}
-      <div
-        style={{
-          flex: 1,
-          overflowY: 'auto',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '1rem',
-          paddingRight: '6px',
-          paddingBottom: '1rem',
-        }}
-      >
-        {messages.length === 0 ? (
-          /* Empty State */
-          <div
-            style={{
-              margin: 'auto',
-              textAlign: 'center',
-              maxWidth: '620px',
-              padding: '2rem 1rem',
-            }}
-          >
-            <div
-              style={{
-                width: '56px',
-                height: '56px',
-                borderRadius: '16px',
-                background: 'var(--brand-gradient)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 1.25rem auto',
-                boxShadow: 'var(--brand-glow)',
-                color: '#ffffff',
-              }}
-            >
-              <Sparkles size={28} />
-            </div>
+      {/* 1. Empty / Welcome State */}
+      {messages.length === 0 ? (
+        <div className="welcome-section">
+          {/* Greeting Row */}
+          <div className="welcome-greeting-row">
+            <StarburstIcon size={30} />
+            <h1 className="welcome-greeting">{getGreeting()}</h1>
+          </div>
 
-            <h3 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#ffffff', fontFamily: 'var(--font-heading)' }}>
-              Ask AMCRAG Anything
-            </h3>
-            <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '0.5rem', lineHeight: 1.6 }}>
-              Combines dense semantic vectors, sparse lexical search, and ColPali visual document retrieval with an Adaptive Corrective RAG quality gate to eliminate hallucinations.
-            </p>
+          {/* Centered Composer in Welcome view */}
+          <div style={{ width: '100%', maxWidth: '46rem' }}>
+            <MessageInput
+              input={input}
+              setInput={setInput}
+              onSubmit={() => handleSendQuery()}
+              onStop={stopStream}
+              isStreaming={streamState.isStreaming}
+              modality={modality}
+              setModality={setModality}
+              onOpenSettings={() => setIsSettingsOpen(true)}
+              selectedDocCount={settings.selectedDocIds.length}
+            />
 
-            {/* Feature Highlights Grid */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
-                gap: '10px',
-                marginTop: '1.75rem',
-                textAlign: 'left',
-              }}
-            >
-              <div className="glass-panel" style={{ padding: '0.875rem' }}>
-                <Layers size={16} style={{ color: '#818cf8', marginBottom: '4px' }} />
-                <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#ffffff' }}>Hybrid Retrieval</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Dense BGE + Sparse BM25 fused with RRF k=60</div>
-              </div>
-
-              <div className="glass-panel" style={{ padding: '0.875rem' }}>
-                <ShieldCheck size={16} style={{ color: '#34d399', marginBottom: '4px' }} />
-                <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#ffffff' }}>Adaptive CRAG</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Confidence thresholds with query reformulations</div>
-              </div>
-
-              <div className="glass-panel" style={{ padding: '0.875rem' }}>
-                <BookOpen size={16} style={{ color: '#f472b6', marginBottom: '4px' }} />
-                <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#ffffff' }}>ColPali Vision</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>150 DPI page visual representations</div>
-              </div>
-            </div>
-
-            {/* Starter Queries */}
-            <div style={{ marginTop: '2rem', textAlign: 'left' }}>
-              <div style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
-                Sample Questions
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {starterQueries.map((q) => (
-                  <button
-                    key={q}
-                    onClick={() => setInput(q)}
-                    style={{
-                      padding: '0.625rem 0.875rem',
-                      borderRadius: '8px',
-                      background: 'rgba(255, 255, 255, 0.03)',
-                      border: '1px solid var(--border-subtle)',
-                      color: 'var(--text-secondary)',
-                      fontSize: '0.8125rem',
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                    }}
-                    className="hover:border-indigo-500/50 hover:text-white"
-                  >
-                    <MessageSquare size={13} style={{ color: 'var(--brand-primary)', flexShrink: 0 }} />
-                    <span>{q}</span>
-                  </button>
-                ))}
-              </div>
+            {/* Suggestion Chips */}
+            <div className="chips-wrap">
+              {starterQueries.map((q) => (
+                <button
+                  key={q}
+                  onClick={() => {
+                    setInput(q);
+                    handleSendQuery(q);
+                  }}
+                  className="suggestion-chip"
+                >
+                  <MessageSquare size={13} style={{ color: 'var(--brand-clay)' }} />
+                  <span>{q}</span>
+                </button>
+              ))}
             </div>
           </div>
-        ) : (
-          messages.map((msg) => (
-            <MessageItem
-              key={msg.id}
-              message={msg}
-              onSelectCitation={handleOpenCitation}
-              onOpenAllSources={handleOpenAllSources}
-            />
-          ))
-        )}
-        <div ref={messagesEndRef} />
-      </div>
+        </div>
+      ) : (
+        /* 2. Active Conversation State */
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          {/* Scrollable Reading Column */}
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            <div className="reading-column">
+              {messages.map((msg) => (
+                <MessageItem
+                  key={msg.id}
+                  message={msg}
+                  onSelectCitation={handleOpenCitation}
+                  onOpenAllSources={handleOpenAllSources}
+                />
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
+          </div>
 
-      {/* Sticky Bottom Input Bar */}
-      <div style={{ marginTop: 'auto', paddingTop: '0.5rem' }}>
-        <MessageInput
-          input={input}
-          setInput={setInput}
-          onSubmit={handleSend}
-          onStop={stopStream}
-          isStreaming={streamState.isStreaming}
-          modality={modality}
-          setModality={setModality}
-          onOpenSettings={() => setIsSettingsOpen(true)}
-        />
-      </div>
+          {/* Pinned Bottom Composer */}
+          <div style={{ flex: 'none', background: 'transparent' }}>
+            <MessageInput
+              input={input}
+              setInput={setInput}
+              onSubmit={() => handleSendQuery()}
+              onStop={stopStream}
+              isStreaming={streamState.isStreaming}
+              modality={modality}
+              setModality={setModality}
+              onOpenSettings={() => setIsSettingsOpen(true)}
+              selectedDocCount={settings.selectedDocIds.length}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Slide-Over Evidence Inspector Drawer */}
       <EvidenceDrawer

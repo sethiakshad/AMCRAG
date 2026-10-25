@@ -1,25 +1,39 @@
 /**
  * src/components/chat/MessageItem.tsx
- * Renders individual user queries and assistant responses with grounded citations and telemetry.
+ * Renders individual user queries and assistant responses adhering strictly to Claude.ai:
+ * - User message in a rounded warm tinted container (sans font).
+ * - Assistant message sits directly on canvas with NO bubble and NO avatar (serif font).
+ * - Minimal, quiet action bar with copy, evidence drawer, CRAG badge, and latency toggle.
  */
 
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
-  User,
-  Bot,
   Copy,
   Check,
   AlertTriangle,
   Layers,
-  Sparkles,
 } from 'lucide-react';
 import { ChatMessage, SourceMetadata } from '../../types/amcrag';
 import { CRAGBadge } from './CRAGBadge';
 import { LatencyWaterfall } from './LatencyWaterfall';
 import { CitationBadge } from './CitationBadge';
 import { parseCitations } from '../../utils/citationParser';
+
+// Geometric starburst mark in terracotta
+const StarburstIcon: React.FC<{ size?: number; className?: string }> = ({ size = 18, className = '' }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    className={className}
+    style={{ display: 'inline-block', verticalAlign: 'middle' }}
+  >
+    <path d="M12 2L13.8 8.2L20 6.5L16.2 11.5L22 14.5L15.8 16.5L17.5 22.5L12 18.5L6.5 22.5L8.2 16.5L2 14.5L7.8 11.5L4 6.5L10.2 8.2L12 2Z" />
+  </svg>
+);
 
 export interface MessageItemProps {
   message: ChatMessage;
@@ -38,7 +52,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   const handleCopy = () => {
     navigator.clipboard.writeText(message.content);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setTimeout(() => setCopied(false), 1800);
   };
 
   // Render markdown with custom citation tag replacement
@@ -46,7 +60,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     const segments = parseCitations(content);
 
     return (
-      <div className="markdown-body">
+      <div className="prose">
         {segments.map((seg, idx) => {
           if (seg.type === 'citation' && seg.evidenceId) {
             const matchedSource = sources.find((s) => s.evidence_id === seg.evidenceId);
@@ -76,189 +90,136 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     );
   };
 
+  // 1. User Message (Rounded container on --bg-300, sans font, no avatar)
+  if (isUser) {
+    return (
+      <div className="turn" style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
+        <div className="msg-user">
+          {message.content}
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Assistant Message (Directly on canvas, no bubble, no avatar, Newsreader serif)
   return (
-    <div
-      style={{
-        display: 'flex',
-        gap: '1rem',
-        padding: '1.25rem',
-        borderRadius: '16px',
-        background: isUser ? 'rgba(255, 255, 255, 0.02)' : 'rgba(15, 23, 42, 0.65)',
-        border: `1px solid ${isUser ? 'transparent' : 'var(--border-subtle)'}`,
-        backdropFilter: isUser ? 'none' : 'blur(12px)',
-        position: 'relative',
-      }}
-      className="fade-in"
-    >
-      {/* Avatar Icon */}
-      <div
-        style={{
-          width: '36px',
-          height: '36px',
-          borderRadius: '10px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-          background: isUser ? 'rgba(255, 255, 255, 0.08)' : 'var(--brand-gradient)',
-          color: '#ffffff',
-          boxShadow: isUser ? 'none' : '0 4px 12px rgba(99, 102, 241, 0.35)',
-        }}
-      >
-        {isUser ? <User size={18} /> : <Bot size={18} />}
+    <div className="turn">
+      {/* Rate Limit Notice if throttled */}
+      {message.rateLimitRetryAfter && (
+        <div
+          style={{
+            padding: '12px 16px',
+            borderRadius: 'var(--radius-md)',
+            background: 'var(--bg-300)',
+            border: 'var(--border-w) solid var(--warning)',
+            color: 'var(--text-100)',
+            fontSize: '13.5px',
+            marginBottom: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+          }}
+        >
+          <AlertTriangle size={16} style={{ color: 'var(--warning)', flexShrink: 0 }} />
+          <div>
+            <strong>Provider Rate Limit:</strong> Upstream model temporarily throttled. Please retry in{' '}
+            <strong>{message.rateLimitRetryAfter}s</strong>.
+          </div>
+        </div>
+      )}
+
+      {/* Zero-Hallucination Guarded Notice */}
+      {message.insufficientEvidence && (
+        <div
+          style={{
+            padding: '12px 16px',
+            borderRadius: 'var(--radius-md)',
+            background: 'var(--bg-300)',
+            border: 'var(--border-w) solid var(--border-200)',
+            color: 'var(--text-200)',
+            fontSize: '13.5px',
+            marginBottom: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+          }}
+        >
+          <AlertTriangle size={16} style={{ color: 'var(--brand-clay)', flexShrink: 0 }} />
+          <div>
+            <strong>Zero-Hallucination Safe Fallback:</strong> The CRAG quality gate determined that retrieved documents lack sufficient factual evidence to reliably answer this prompt. Generation was stopped to avoid fabrication.
+          </div>
+        </div>
+      )}
+
+      {/* Error Card */}
+      {message.error && !message.rateLimitRetryAfter && (
+        <div
+          style={{
+            padding: '12px 16px',
+            borderRadius: 'var(--radius-md)',
+            background: 'var(--bg-300)',
+            border: 'var(--border-w) solid rgba(181, 51, 51, 0.3)',
+            color: 'var(--danger)',
+            fontSize: '13.5px',
+            marginBottom: '12px',
+          }}
+        >
+          {message.error}
+        </div>
+      )}
+
+      {/* Main Serif Text Body */}
+      <div className="msg-ai">
+        {message.content ? (
+          renderFormattedAnswer(message.content, message.sources)
+        ) : null}
+
+        {/* Streaming Thinking State */}
+        {message.isStreaming && (
+          <div className="thinking-state">
+            <StarburstIcon size={16} className="spin-mark" />
+            <span>Thinking…</span>
+          </div>
+        )}
       </div>
 
-      {/* Message Content Container */}
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
-        {/* Header: Author & Metadata */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontWeight: 600, fontSize: '0.9375rem', color: '#ffffff' }}>
-              {isUser ? 'You' : 'AMCRAG Assistant'}
-            </span>
-
-            {!isUser && message.cragDecision && (
-              <CRAGBadge decision={message.cragDecision} attempts={message.retrievalAttempts} />
-            )}
-          </div>
-
-          {!isUser && !message.isStreaming && message.content && (
-            <button
-              onClick={handleCopy}
-              className="btn-icon"
-              title="Copy answer"
-              style={{ padding: '4px' }}
-            >
-              {copied ? <Check size={14} style={{ color: '#10b981' }} /> : <Copy size={14} />}
-            </button>
+      {/* Quiet Action Toolbar Below Assistant Answer */}
+      {!message.isStreaming && message.content && (
+        <div className="msg-actions">
+          {/* CRAG Decision State Badge */}
+          {message.cragDecision && (
+            <CRAGBadge decision={message.cragDecision} attempts={message.retrievalAttempts} />
           )}
-        </div>
 
-        {/* Rate Limit Error Card if received */}
-        {message.rateLimitRetryAfter && (
-          <div
-            style={{
-              padding: '0.875rem 1rem',
-              borderRadius: '8px',
-              background: 'rgba(245, 158, 11, 0.12)',
-              border: '1px solid rgba(245, 158, 11, 0.35)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              color: '#fbbf24',
-              fontSize: '0.8125rem',
-            }}
-          >
-            <AlertTriangle size={18} style={{ flexShrink: 0 }} />
-            <div>
-              <strong>LLM Rate Limit Reached:</strong> Upstream provider throttled request. Please retry after{' '}
-              <strong>{message.rateLimitRetryAfter} seconds</strong>.
-            </div>
-          </div>
-        )}
-
-        {/* Zero-Hallucination Safe Fallback Card */}
-        {message.insufficientEvidence && (
-          <div
-            style={{
-              padding: '0.875rem 1rem',
-              borderRadius: '8px',
-              background: 'rgba(245, 158, 11, 0.1)',
-              border: '1px solid rgba(245, 158, 11, 0.3)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              color: '#fbbf24',
-              fontSize: '0.8125rem',
-            }}
-          >
-            <AlertTriangle size={18} style={{ flexShrink: 0 }} />
-            <div>
-              <strong>Zero-Hallucination Guard Active:</strong> The CRAG quality gate concluded that the indexed documents lack factual evidence to reliably answer this question. Generation was stopped to prevent ungrounded fabrication.
-            </div>
-          </div>
-        )}
-
-        {/* General Error Card */}
-        {message.error && !message.rateLimitRetryAfter && (
-          <div
-            style={{
-              padding: '0.75rem 1rem',
-              borderRadius: '8px',
-              background: 'rgba(244, 63, 94, 0.12)',
-              border: '1px solid rgba(244, 63, 94, 0.35)',
-              color: '#fb7185',
-              fontSize: '0.8125rem',
-            }}
-          >
-            {message.error}
-          </div>
-        )}
-
-        {/* Text Body */}
-        {isUser ? (
-          <div style={{ color: '#ffffff', fontSize: '0.9375rem', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-            {message.content}
-          </div>
-        ) : (
-          <div>
-            {renderFormattedAnswer(message.content, message.sources)}
-            {message.isStreaming && <span className="cursor-blink">▊</span>}
-          </div>
-        )}
-
-        {/* Source Citations Quick Bar */}
-        {!isUser && message.sources && message.sources.length > 0 && (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              paddingTop: '0.5rem',
-              borderTop: '1px solid var(--border-subtle)',
-              fontSize: '0.75rem',
-              color: 'var(--text-muted)',
-              flexWrap: 'wrap',
-              gap: '8px',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-              <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Sources:</span>
-              {message.sources.map((src) => (
-                <CitationBadge
-                  key={src.evidence_id}
-                  evidenceTag={`[${src.evidence_id}] ${src.document}${src.page ? ` p.${src.page}` : ''}`}
-                  evidenceId={src.evidence_id}
-                  source={src}
-                  onClick={(id) => onSelectCitation(id, message.sources || [])}
-                />
-              ))}
-            </div>
-
+          {/* Evidence Sources Button */}
+          {message.sources && message.sources.length > 0 && (
             <button
               onClick={() => onOpenAllSources(message.sources || [], message.visualInputs)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--brand-primary)',
-                fontSize: '0.75rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px',
-              }}
+              className="btn btn-ghost"
+              style={{ height: '28px', padding: '0 8px', fontSize: '12px', gap: '4px' }}
+              title="Inspect citations and page evidence"
             >
-              <Layers size={13} /> View All {message.sources.length} Evidence Items
+              <Layers size={13} style={{ color: 'var(--brand-clay)' }} />
+              <span>{message.sources.length} {message.sources.length === 1 ? 'citation' : 'citations'}</span>
             </button>
-          </div>
-        )}
+          )}
 
-        {/* Latency Waterfall Telemetry */}
-        {!isUser && (
-          <LatencyWaterfall latency={message.latency} totalMs={message.totalMs} />
-        )}
-      </div>
+          {/* Copy Button */}
+          <button
+            onClick={handleCopy}
+            className="btn-icon"
+            style={{ width: '28px', height: '28px', marginLeft: 'auto' }}
+            title={copied ? 'Copied to clipboard' : 'Copy answer'}
+          >
+            {copied ? <Check size={14} style={{ color: 'var(--success)' }} /> : <Copy size={14} />}
+          </button>
+        </div>
+      )}
+
+      {/* Telemetry Breakdown (Collapsible) */}
+      {!message.isStreaming && (
+        <LatencyWaterfall latency={message.latency} totalMs={message.totalMs} />
+      )}
     </div>
   );
 };

@@ -1,10 +1,11 @@
 /**
  * src/components/chat/QuerySettingsModal.tsx
  * Query execution parameter configuration modal (top_k, token_budget, enable_crag, document filtering).
+ * Aligned with Claude design system.
  */
 
 import React from 'react';
-import { Sliders, RotateCcw } from 'lucide-react';
+import { RotateCcw } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { DocumentSummary, QuerySettingsConfig } from '../../types/amcrag';
@@ -58,15 +59,15 @@ export const QuerySettingsModal: React.FC<QuerySettingsModalProps> = ({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Query & Retrieval Settings" maxWidth="520px">
+    <Modal isOpen={isOpen} onClose={onClose} title="Query Settings" maxWidth="500px">
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         {/* Top K Slider */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-            <label style={{ fontSize: '0.875rem', fontWeight: 600, color: '#ffffff' }}>
-              Retrieval Top-K Candidates: <strong style={{ color: 'var(--brand-primary)' }}>{localSettings.topK}</strong>
+            <label style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-100)' }}>
+              Retrieval Top-K Candidates: <strong style={{ color: 'var(--brand)', fontFamily: 'var(--font-mono)' }}>{localSettings.topK}</strong>
             </label>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>1 to 50</span>
+            <span style={{ fontSize: '12px', color: 'var(--text-400)' }}>1 to 50</span>
           </div>
           <input
             type="range"
@@ -74,20 +75,20 @@ export const QuerySettingsModal: React.FC<QuerySettingsModalProps> = ({
             max={50}
             value={localSettings.topK}
             onChange={(e) => setLocalSettings({ ...localSettings, topK: parseInt(e.target.value, 10) })}
-            style={{ width: '100%', accentColor: 'var(--brand-primary)' }}
+            style={{ width: '100%', accentColor: 'var(--brand)' }}
           />
-          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Number of hybrid text chunks and ColPali visual pages retrieved per query.
+          <p style={{ fontSize: '12px', color: 'var(--text-300)', marginTop: '4px' }}>
+            Number of hybrid passages and ColPali visual page representations retrieved per query.
           </p>
         </div>
 
         {/* Token Budget Slider */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-            <label style={{ fontSize: '0.875rem', fontWeight: 600, color: '#ffffff' }}>
-              Context Token Budget: <strong style={{ color: '#38bdf8' }}>{localSettings.tokenBudget}</strong> tokens
+            <label style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-100)' }}>
+              Context Token Budget: <strong style={{ color: 'var(--brand-clay)', fontFamily: 'var(--font-mono)' }}>{localSettings.tokenBudget}</strong> tokens
             </label>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>500 to 32,000</span>
+            <span style={{ fontSize: '12px', color: 'var(--text-400)' }}>500 to 16,000</span>
           </div>
           <input
             type="range"
@@ -96,9 +97,9 @@ export const QuerySettingsModal: React.FC<QuerySettingsModalProps> = ({
             step={256}
             value={localSettings.tokenBudget}
             onChange={(e) => setLocalSettings({ ...localSettings, tokenBudget: parseInt(e.target.value, 10) })}
-            style={{ width: '100%', accentColor: '#38bdf8' }}
+            style={{ width: '100%', accentColor: 'var(--brand)' }}
           />
-          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+          <p style={{ fontSize: '12px', color: 'var(--text-300)', marginTop: '4px' }}>
             Maximum token budget allocated for context synthesis before truncation.
           </p>
         </div>
@@ -109,17 +110,17 @@ export const QuerySettingsModal: React.FC<QuerySettingsModalProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '0.875rem 1rem',
-            background: 'rgba(255, 255, 255, 0.02)',
-            borderRadius: '8px',
-            border: '1px solid var(--border-subtle)',
+            padding: '12px 14px',
+            background: 'var(--bg-100)',
+            borderRadius: 'var(--radius-md)',
+            border: 'var(--border-w) solid var(--border-200)',
           }}
         >
           <div>
-            <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#ffffff' }}>
-              Adaptive CRAG Quality Gatekeeper
+            <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-100)' }}>
+              Adaptive CRAG Quality Gate
             </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            <div style={{ fontSize: '12px', color: 'var(--text-300)' }}>
               Evaluates evidence confidence, filters noise, and reformulates query if needed.
             </div>
           </div>
@@ -127,7 +128,7 @@ export const QuerySettingsModal: React.FC<QuerySettingsModalProps> = ({
             type="checkbox"
             checked={localSettings.enableCrag}
             onChange={(e) => setLocalSettings({ ...localSettings, enableCrag: e.target.checked })}
-            style={{ width: '18px', height: '18px', accentColor: 'var(--brand-primary)', cursor: 'pointer' }}
+            style={{ width: '17px', height: '17px', accentColor: 'var(--brand)', cursor: 'pointer' }}
           />
         </div>
 
@@ -137,17 +138,17 @@ export const QuerySettingsModal: React.FC<QuerySettingsModalProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '0.875rem 1rem',
-            background: 'rgba(255, 255, 255, 0.02)',
-            borderRadius: '8px',
-            border: '1px solid var(--border-subtle)',
+            padding: '12px 14px',
+            background: 'var(--bg-100)',
+            borderRadius: 'var(--radius-md)',
+            border: 'var(--border-w) solid var(--border-200)',
           }}
         >
           <div>
-            <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#ffffff' }}>
-              Real-Time SSE Token Streaming
+            <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-100)' }}>
+              Real-Time SSE Streaming
             </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            <div style={{ fontSize: '12px', color: 'var(--text-300)' }}>
               Streams answer tokens as they are generated by the LLM.
             </div>
           </div>
@@ -155,17 +156,17 @@ export const QuerySettingsModal: React.FC<QuerySettingsModalProps> = ({
             type="checkbox"
             checked={localSettings.streamMode}
             onChange={(e) => setLocalSettings({ ...localSettings, streamMode: e.target.checked })}
-            style={{ width: '18px', height: '18px', accentColor: 'var(--brand-primary)', cursor: 'pointer' }}
+            style={{ width: '17px', height: '17px', accentColor: 'var(--brand)', cursor: 'pointer' }}
           />
         </div>
 
         {/* Document Scope Filter */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-            <label style={{ fontSize: '0.875rem', fontWeight: 600, color: '#ffffff' }}>
+            <label style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-100)' }}>
               Document Filter Scope
             </label>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            <span style={{ fontSize: '12px', color: 'var(--text-300)' }}>
               {localSettings.selectedDocIds.length === 0
                 ? 'Searching All Documents'
                 : `${localSettings.selectedDocIds.length} restricted`}
@@ -173,19 +174,19 @@ export const QuerySettingsModal: React.FC<QuerySettingsModalProps> = ({
           </div>
 
           {availableDocuments.length === 0 ? (
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>No documents currently indexed.</p>
+            <p style={{ fontSize: '12px', color: 'var(--text-400)' }}>No documents currently indexed.</p>
           ) : (
             <div
               style={{
                 maxHeight: '130px',
                 overflowY: 'auto',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: '8px',
+                border: 'var(--border-w) solid var(--border-200)',
+                borderRadius: 'var(--radius-md)',
                 padding: '6px',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '4px',
-                background: 'rgba(0, 0, 0, 0.2)',
+                gap: '3px',
+                background: 'var(--bg-100)',
               }}
             >
               {availableDocuments.map((doc) => {
@@ -197,19 +198,19 @@ export const QuerySettingsModal: React.FC<QuerySettingsModalProps> = ({
                       display: 'flex',
                       alignItems: 'center',
                       gap: '8px',
-                      padding: '4px 8px',
-                      borderRadius: '4px',
+                      padding: '5px 8px',
+                      borderRadius: 'var(--radius-sm)',
                       cursor: 'pointer',
-                      fontSize: '0.8125rem',
-                      color: isSelected ? '#ffffff' : 'var(--text-secondary)',
-                      background: isSelected ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
+                      fontSize: '13px',
+                      color: isSelected ? 'var(--text-100)' : 'var(--text-200)',
+                      background: isSelected ? 'var(--brand-tint)' : 'transparent',
                     }}
                   >
                     <input
                       type="checkbox"
                       checked={isSelected}
                       onChange={() => toggleDocSelection(doc.document_id)}
-                      style={{ accentColor: 'var(--brand-primary)' }}
+                      style={{ accentColor: 'var(--brand)' }}
                     />
                     <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {doc.filename}
@@ -222,17 +223,17 @@ export const QuerySettingsModal: React.FC<QuerySettingsModalProps> = ({
         </div>
 
         {/* Actions */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', paddingTop: '10px', borderTop: 'var(--border-w) solid var(--border-100)' }}>
           <Button variant="ghost" size="sm" onClick={handleReset} icon={<RotateCcw size={13} />}>
-            Reset Defaults
+            Reset
           </Button>
 
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', gap: '8px' }}>
             <Button variant="secondary" onClick={onClose}>
               Cancel
             </Button>
             <Button variant="primary" onClick={handleApply}>
-              Save Settings
+              Save
             </Button>
           </div>
         </div>

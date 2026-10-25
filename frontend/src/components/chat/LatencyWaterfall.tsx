@@ -1,10 +1,11 @@
 /**
  * src/components/chat/LatencyWaterfall.tsx
- * Visual waterfall display showing per-stage latency breakdown across the RAG pipeline.
+ * Quiet, editorial telemetry breakdown showing per-stage latency across the pipeline.
+ * Follows Claude muted warm palette.
  */
 
 import React, { useState } from 'react';
-import { Zap, ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, Clock } from 'lucide-react';
 import { LatencyBreakdown } from '../../types/amcrag';
 import { formatDuration } from '../../utils/formatters';
 
@@ -23,39 +24,40 @@ export const LatencyWaterfall: React.FC<LatencyWaterfallProps> = ({ latency, tot
     {
       label: 'Query Analysis',
       ms: latency?.query_analysis_ms || 0,
-      color: '#818cf8',
+      color: 'var(--text-400)',
     },
     {
       label: 'Parallel Retrieval & Fusion',
       ms: latency?.retrieval_ms || 0,
-      color: '#38bdf8',
+      color: 'var(--brand-clay)',
     },
     {
       label: 'CRAG Gate & Reformulation',
       ms: latency?.crag_evaluation_ms || 0,
-      color: '#c084fc',
+      color: 'var(--brand)',
     },
     {
       label: 'Context Building & Citations',
       ms: latency?.context_building_ms || 0,
-      color: '#fbbf24',
+      color: 'var(--text-300)',
     },
     {
       label: 'LLM Answer Generation',
       ms: latency?.generation_ms || 0,
-      color: '#34d399',
+      color: 'var(--brand-active)',
     },
   ];
 
   return (
     <div
       style={{
-        marginTop: '0.75rem',
-        padding: '0.5rem 0.75rem',
-        borderRadius: '8px',
-        background: 'rgba(255, 255, 255, 0.02)',
-        border: '1px solid var(--border-subtle)',
-        fontSize: '0.75rem',
+        marginTop: '10px',
+        padding: '8px 12px',
+        borderRadius: 'var(--radius-md)',
+        background: 'var(--bg-200)',
+        border: 'var(--border-w) solid var(--border-100)',
+        fontSize: '12px',
+        color: 'var(--text-200)',
       }}
     >
       <div
@@ -68,35 +70,37 @@ export const LatencyWaterfall: React.FC<LatencyWaterfallProps> = ({ latency, tot
           userSelect: 'none',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)' }}>
-          <Zap size={13} style={{ color: '#f59e0b' }} />
-          <span>Pipeline Telemetry:</span>
-          <strong style={{ color: '#ffffff' }}>{formatDuration(finalTotal)}</strong>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <Clock size={13} style={{ color: 'var(--brand-clay)' }} />
+          <span>Pipeline execution:</span>
+          <strong style={{ color: 'var(--text-100)', fontFamily: 'var(--font-mono)' }}>
+            {formatDuration(finalTotal)}
+          </strong>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-muted)' }}>
-          <span>{isExpanded ? 'Hide Breakdown' : 'Show Breakdown'}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-300)' }}>
+          <span>{isExpanded ? 'Hide' : 'Details'}</span>
           {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
         </div>
       </div>
 
       {isExpanded && latency && (
-        <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px', paddingTop: '8px', borderTop: 'var(--border-w) solid var(--border-100)' }}>
           {stages.map((stage) => {
             const pct = finalTotal > 0 ? Math.min(100, Math.max(3, (stage.ms / finalTotal) * 100)) : 0;
             return (
               <div key={stage.label}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', color: 'var(--text-secondary)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px', fontSize: '11.5px', color: 'var(--text-200)' }}>
                   <span>{stage.label}</span>
-                  <span style={{ fontFamily: 'var(--font-mono)', color: '#ffffff' }}>
+                  <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-100)' }}>
                     {formatDuration(stage.ms)}
                   </span>
                 </div>
                 <div
                   style={{
-                    height: '4px',
+                    height: '3px',
                     width: '100%',
-                    background: 'rgba(255, 255, 255, 0.06)',
+                    background: 'var(--bg-300)',
                     borderRadius: '2px',
                     overflow: 'hidden',
                   }}

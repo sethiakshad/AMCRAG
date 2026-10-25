@@ -1,11 +1,13 @@
 /**
  * src/components/chat/MessageInput.tsx
- * Multi-line prompt input with modality switcher, stop generation button, and settings trigger.
+ * Signature Claude.ai composer component:
+ * - Floating pill shape (20px border radius) on --bg-000
+ * - Terracotta 32px send button with up arrow
+ * - Modality segmented control and query settings trigger
  */
 
 import React, { useRef, useEffect } from 'react';
-import { Send, Square, Sliders, CornerDownLeft } from 'lucide-react';
-import { Button } from '../ui/Button';
+import { ArrowUp, Square, Sliders, Filter } from 'lucide-react';
 import { ModalitySelector } from './ModalitySelector';
 import { ModelModality } from '../../types/amcrag';
 
@@ -18,6 +20,7 @@ export interface MessageInputProps {
   modality: ModelModality | null;
   setModality: (val: ModelModality | null) => void;
   onOpenSettings: () => void;
+  selectedDocCount?: number;
   disabled?: boolean;
 }
 
@@ -30,6 +33,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   modality,
   setModality,
   onOpenSettings,
+  selectedDocCount = 0,
   disabled = false,
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -38,7 +42,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 180)}px`;
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 260)}px`;
     }
   }, [input]);
 
@@ -52,92 +56,85 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   };
 
   return (
-    <div
-      className="glass-panel-elevated"
-      style={{
-        padding: '0.875rem 1.125rem',
-        borderRadius: '16px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '0.75rem',
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
-      }}
-    >
-      {/* Top Toolbar: Modality Selector & Settings */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <ModalitySelector value={modality} onChange={setModality} />
-
-        <Button
-          variant="icon"
-          onClick={onOpenSettings}
-          title="Adjust retrieval top-k, token budget, and document scope"
-          style={{ padding: '4px' }}
-        >
-          <Sliders size={16} />
-        </Button>
-      </div>
-
-      {/* Input Area */}
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.75rem' }}>
+    <div className="composer-wrap">
+      <div className="composer">
+        {/* Text Area */}
         <textarea
           ref={textareaRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Ask a question about your indexed PDF documents, reports, or research papers..."
+          placeholder="Reply to AMCRAG or ask a question about your indexed PDFs..."
           disabled={disabled || isStreaming}
           rows={1}
-          style={{
-            flex: 1,
-            background: 'transparent',
-            border: 'none',
-            outline: 'none',
-            color: '#ffffff',
-            fontSize: '0.9375rem',
-            fontFamily: 'var(--font-sans)',
-            lineHeight: 1.5,
-            resize: 'none',
-            maxHeight: '180px',
-            padding: '2px 0',
-          }}
         />
 
-        {/* Submit or Stop Button */}
-        {isStreaming ? (
-          <Button
-            variant="danger"
-            onClick={onStop}
-            title="Stop generation"
-            icon={<Square size={14} fill="currentColor" />}
-            style={{ borderRadius: '10px', height: '38px', padding: '0 12px' }}
-          >
-            Stop
-          </Button>
-        ) : (
-          <Button
-            variant="primary"
-            onClick={onSubmit}
-            disabled={!input.trim() || disabled}
-            title="Submit question (Enter)"
-            icon={<Send size={15} />}
-            style={{ borderRadius: '10px', height: '38px', padding: '0 14px' }}
-          >
-            Ask
-          </Button>
-        )}
+        {/* Bottom Toolbar */}
+        <div className="composer-toolbar">
+          {/* Left tools: Modality Selector & Filter Indicator */}
+          <div className="composer-tools-left">
+            <ModalitySelector value={modality} onChange={setModality} />
+
+            {selectedDocCount > 0 && (
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                className="btn btn-ghost"
+                style={{
+                  height: '28px',
+                  padding: '0 8px',
+                  fontSize: '12px',
+                  gap: '4px',
+                  color: 'var(--brand)',
+                  background: 'var(--brand-tint)',
+                  borderRadius: 'var(--radius-sm)',
+                }}
+                title="Filter active on specific documents"
+              >
+                <Filter size={11} />
+                <span>{selectedDocCount} doc{selectedDocCount > 1 ? 's' : ''}</span>
+              </button>
+            )}
+          </div>
+
+          {/* Right tools: Settings Cog & Send/Stop Button */}
+          <div className="composer-tools-right">
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              className="btn-icon"
+              title="Query and Retrieval Parameters"
+              style={{ width: '30px', height: '30px' }}
+            >
+              <Sliders size={16} />
+            </button>
+
+            {isStreaming ? (
+              <button
+                type="button"
+                onClick={onStop}
+                className="stop-btn"
+                title="Stop generation"
+              >
+                <Square size={12} fill="currentColor" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onSubmit}
+                disabled={!input.trim() || disabled}
+                className="send-btn"
+                title="Send message (Enter)"
+              >
+                <ArrowUp size={16} strokeWidth={2.5} />
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* Subtext info */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          fontSize: '0.7rem',
-          color: 'var(--text-muted)',
-        }}
-      >
-        <span>Press <kbd style={{ fontFamily: 'var(--font-mono)' }}>Enter</kbd> to ask, <kbd style={{ fontFamily: 'var(--font-mono)' }}>Shift+Enter</kbd> for newline</span>
-        <span>Grounded by Adaptive CRAG with 100% citation provenance</span>
+      <div className="composer-disclaimer">
+        AMCRAG answers with Adaptive Multimodal Corrective RAG and 100% citation grounding.
       </div>
     </div>
   );
