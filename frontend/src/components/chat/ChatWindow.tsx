@@ -228,7 +228,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             padding: '6px 14px',
             borderRadius: 'var(--radius-md)',
             background: 'var(--brand-tint)',
-            border: 'var(--border-w) solid rgba(201, 100, 66, 0.25)',
+            border: 'var(--border-w) solid rgba(51, 143, 255, 0.25)',
             fontSize: '13px',
             color: 'var(--text-100)',
             display: 'flex',

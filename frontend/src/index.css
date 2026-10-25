@@ -29,20 +29,20 @@
   --active: rgba(31, 30, 29, 0.08);
   --border-w: 1px;
 
-  /* Brand terracotta */
-  --brand: #C96442;
-  --brand-hover: #B5573B;
-  --brand-active: #A9583E;
-  --brand-clay: #D97757;
+  /* Brand Accent (#338FFF) */
+  --brand: #338FFF;
+  --brand-hover: #1F7EE6;
+  --brand-active: #156AC7;
+  --brand-clay: #338FFF;
   --on-brand: #FFFFFF;
-  --brand-tint: rgba(217, 119, 87, 0.12);
+  --brand-tint: rgba(51, 143, 255, 0.12);
 
   /* Semantic utilities */
-  --link: #2C84DB;
+  --link: #338FFF;
   --success: #17A34A;
   --warning: #EAB308;
   --danger: #B53333;
-  --focus-ring: rgba(44, 132, 219, 0.55);
+  --focus-ring: rgba(51, 143, 255, 0.45);
 
   /* Code */
   --code-bg: #FFFFFF;
@@ -112,13 +112,13 @@
   --hover: rgba(250, 249, 245, 0.05);
   --active: rgba(250, 249, 245, 0.08);
 
-  /* Brand */
-  --brand: #D97757;
-  --brand-hover: #E58A6C;
-  --brand-active: #C96442;
-  --brand-clay: #D97757;
+  /* Brand Accent (#338FFF) */
+  --brand: #338FFF;
+  --brand-hover: #4DA1FF;
+  --brand-active: #1F7EE6;
+  --brand-clay: #4DA1FF;
   --on-brand: #FFFFFF;
-  --brand-tint: rgba(217, 119, 87, 0.16);
+  --brand-tint: rgba(51, 143, 255, 0.18);
 
   /* Semantic */
   --link: #5B9FE3;
@@ -200,7 +200,7 @@ a:hover {
 }
 
 ::selection {
-  background: rgba(217, 119, 87, 0.25);
+  background: rgba(51, 143, 255, 0.25);
 }
 
 /* Scrollbars */
@@ -677,7 +677,7 @@ a:hover {
   border-radius: var(--radius-sm);
   background: var(--brand-tint);
   color: var(--brand);
-  border: var(--border-w) solid rgba(201, 100, 66, 0.25);
+  border: var(--border-w) solid rgba(51, 143, 255, 0.25);
   cursor: pointer;
   transition: all var(--dur-base);
   vertical-align: baseline;

@@ -26,7 +26,7 @@ export const Badge: React.FC<BadgeProps> = ({
     brand: {
       background: 'var(--brand-tint)',
       color: 'var(--brand)',
-      border: 'var(--border-w) solid rgba(201, 100, 66, 0.25)',
+      border: 'var(--border-w) solid rgba(51, 143, 255, 0.25)',
     },
     success: {
       background: 'rgba(23, 163, 74, 0.08)',
