@@ -9,7 +9,6 @@ import React, { useState, useEffect } from 'react';
 import {
   MessageSquare,
   BookOpen,
-  FileCode,
   Sun,
   Moon,
   Plus,
@@ -190,18 +189,6 @@ export function App() {
             )}
             <span>{theme === 'light' ? 'Dark mode' : 'Light mode'}</span>
           </button>
-
-          {/* API Swagger Documentation link */}
-          <a
-            href="/docs"
-            target="_blank"
-            rel="noreferrer"
-            className="sb-row"
-            title="Open FastAPI Swagger OpenAPI Documentation (/docs)"
-          >
-            <FileCode size={16} style={{ color: 'var(--text-300)' }} />
-            <span>API Documentation</span>
-          </a>
 
           {/* GitHub Repository link */}
           <a
