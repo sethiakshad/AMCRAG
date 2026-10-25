@@ -75,8 +75,12 @@ test2/*
 # Local prework
 my prework/
 
-# Local API test scripts (contain local keys/benchmarks)
+# Local API test scripts & scratch patterns (contain local keys/benchmarks)
 geminiapitest.py
 testollamaapikey.py
+scratch/
+*apitest*.py
+*testkey*.py
+test_local_*.py
 
 
