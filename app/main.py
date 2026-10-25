@@ -275,10 +275,20 @@ def create_app(
         )
 
     # -------------------------------------------------------------------------
-    # Mount Sub-Routers
+    # Mount Sub-Routers & Static Files
     # -------------------------------------------------------------------------
 
     app.include_router(api_router, prefix="/api/v1")
+
+    # Serve rendered 150 DPI page PNG images for ColPali and frontend preview
+    page_images_dir = app_settings.get_page_images_path()
+    page_images_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        from fastapi.staticfiles import StaticFiles
+        app.mount("/static/page_images", StaticFiles(directory=str(page_images_dir)), name="page_images")
+    except Exception as exc:
+        logger.warning("Could not mount static page_images directory: %s", exc)
+
 
     # -------------------------------------------------------------------------
     # Root Diagnostic Endpoint
