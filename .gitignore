@@ -82,5 +82,6 @@ scratch/
 *apitest*.py
 *testkey*.py
 test_local_*.py
+*.log
 
 
