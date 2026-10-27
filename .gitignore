@@ -75,6 +75,8 @@ Thumbs.db
 test2/*
 # Local prework
 my prework/
+contextbuilder.mmd
+crag_evaluator.mmd
 
 # Local API test scripts & scratch patterns (contain local keys/benchmarks)
 geminiapitest.py
