@@ -76,6 +76,10 @@ class Settings(BaseSettings):
         default="visual_only",
         description="Reranking strategy: 'visual_only' or 'full_blend'.",
     )
+    colpali_max_pages_per_doc: int = Field(
+        default=20,
+        description="Maximum pages to embed visually with ColPali per document (prevents CPU lockup on large documents; 0 for unlimited).",
+    )
     qdrant_url: str = Field(
         default="http://localhost:6333",
         description="URL of the running Qdrant server.",

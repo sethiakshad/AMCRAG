@@ -10,6 +10,13 @@ Orchestrates the entire AMCRAG system:
 
 from __future__ import annotations
 
+import os
+
+# Crucial Windows OpenMP & HuggingFace runtime guards
+os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS", "1")
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+
 import logging
 import time
 from contextlib import asynccontextmanager
@@ -94,6 +101,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 batch_size=settings.colpali_batch_size,
                 device=settings.colpali_device,
                 enabled=settings.colpali_enabled,
+                max_pages=settings.colpali_max_pages_per_doc,
             )
             logger.info("ColPaliVisualBridge initialized (is_ready=%s).", visual_bridge.is_ready)
         except Exception as exc:
@@ -207,8 +215,12 @@ def create_app(
         allow_origins=[
             "http://localhost:3000",
             "http://localhost:5173",
+            "http://localhost:5174",
+            "http://localhost:5175",
             "http://127.0.0.1:3000",
             "http://127.0.0.1:5173",
+            "http://127.0.0.1:5174",
+            "http://127.0.0.1:5175",
         ],
         allow_credentials=True,
         allow_methods=["*"],
@@ -317,4 +329,5 @@ app = create_app()
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+    server_port = int(os.environ.get("PORT", os.environ.get("AMCRAG_PORT", 8000)))
+    uvicorn.run("app.main:app", host="0.0.0.0", port=server_port, reload=True)

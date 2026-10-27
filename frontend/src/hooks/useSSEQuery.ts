@@ -92,7 +92,13 @@ export function useSSEQuery() {
 
         if (!response.ok) {
           const errData = await response.json().catch(() => ({}));
-          const errMsg = errData.detail || errData.error || `Stream failed with status ${response.status}`;
+          let errMsg = errData.detail || errData.error || `Stream failed with status ${response.status}`;
+          // Provide friendlier messages for common backend-down scenarios
+          if (response.status === 502) {
+            errMsg = 'Backend server is not running. Please start the backend first.';
+          } else if (response.status === 503) {
+            errMsg = errData.detail || 'Service temporarily unavailable. Please try again shortly.';
+          }
           let retrySec: number | null = null;
           if (response.status === 503) {
             const retryHeader = response.headers.get('Retry-After');
@@ -128,15 +134,16 @@ export function useSSEQuery() {
 
             const lines = rawEvent.split('\n');
             let eventType = 'message';
-            let dataStr = '';
+            const dataLines: string[] = [];
 
             for (const line of lines) {
               if (line.startsWith('event: ')) {
                 eventType = line.slice(7).trim();
               } else if (line.startsWith('data: ')) {
-                dataStr = line.slice(6);
+                dataLines.push(line.slice(6));
               }
             }
+            const dataStr = dataLines.join('\n');
 
             if (eventType === 'metadata') {
               try {
@@ -207,6 +214,15 @@ export function useSSEQuery() {
           }
         }
 
+        // Safety net: ensure isStreaming is false after reader finishes,
+        // even if no explicit 'done' event was received (e.g. backend crash mid-stream)
+        setStreamState((prev) => {
+          if (prev.isStreaming) {
+            return { ...prev, isStreaming: false };
+          }
+          return prev;
+        });
+
         if (onComplete) {
           onComplete({
             isStreaming: false,
@@ -228,10 +244,13 @@ export function useSSEQuery() {
           setStreamState((prev) => ({ ...prev, isStreaming: false }));
         } else {
           console.error('AMCRAG: SSE Query stream failed', err);
+          const friendlyMsg = err.message?.includes('Failed to fetch')
+            ? 'Cannot connect to the backend. Please ensure the server is running.'
+            : (err.message || 'Network stream error');
           setStreamState((prev) => ({
             ...prev,
             isStreaming: false,
-            error: err.message || 'Network stream error',
+            error: friendlyMsg,
           }));
         }
       } finally {

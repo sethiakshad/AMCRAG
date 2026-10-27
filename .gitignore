@@ -53,6 +53,7 @@ data/cache/
 
 # Storage & DB files
 qdrant_storage/
+data/colpali_qdrant_storage/
 *.pkl
 *.db
 *.sqlite

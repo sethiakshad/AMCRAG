@@ -157,8 +157,10 @@ class ColPaliVisualBridge:
         batch_size: int = 4,
         device: str = "auto",
         enabled: bool = True,
+        max_pages: int = 20,
     ) -> None:
         self.enabled = enabled
+        self.max_pages = max_pages
         self._model = None
         self._indexer = None
         self._retriever = None
@@ -171,16 +173,32 @@ class ColPaliVisualBridge:
             from app.colpali.colpali_model import ColPaliModel
             from app.colpali.colpali_indexer import ColPaliIndexer
             from app.colpali.colpali_retriever import ColPaliRetriever
+            from qdrant_client import QdrantClient
 
             self._model = ColPaliModel(
                 model_name=model_name,
                 device=device,
             )
+
+            qdrant_client = None
+            try:
+                qdrant_client = QdrantClient(url=qdrant_url, timeout=2.0)
+                qdrant_client.get_collections()
+            except Exception as exc:
+                logger.info(
+                    "Qdrant server at %s unavailable (%s). Using embedded local storage at ./data/colpali_qdrant_storage.",
+                    qdrant_url,
+                    exc,
+                )
+                qdrant_client = QdrantClient(path="./data/colpali_qdrant_storage")
+
             self._indexer = ColPaliIndexer(
                 model=self._model,
                 qdrant_url=qdrant_url,
                 collection=collection,
                 batch_size=batch_size,
+                client=qdrant_client,
+                max_pages=max_pages,
             )
             self._retriever = ColPaliRetriever(
                 model=self._model,
@@ -188,6 +206,7 @@ class ColPaliVisualBridge:
                 collection=collection,
                 top_k=top_k,
                 enabled=True,
+                client=qdrant_client,
             )
             logger.info("ColPaliVisualBridge initialised (model=%s, device=%s).", model_name, device)
 

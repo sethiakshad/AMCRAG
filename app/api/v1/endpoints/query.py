@@ -18,6 +18,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+
+
 @router.post(
     "/query",
     response_model=QueryResponse,
@@ -79,12 +81,18 @@ async def execute_query_stream(
                 data_val = item.get("data")
                 if isinstance(data_val, (dict, list)):
                     payload_str = json.dumps(data_val, ensure_ascii=False)
+                    yield f"event: {event_name}\ndata: {payload_str}\n\n"
                 else:
-                    payload_str = str(data_val)
-                yield f"event: {event_name}\ndata: {payload_str}\n\n"
+                    lines = str(data_val).split("\n")
+                    data_block = "\n".join(f"data: {line}" for line in lines)
+                    yield f"event: {event_name}\n{data_block}\n\n"
         except LLMRateLimitError as exc:
             logger.warning("LLM provider rate limit during SSE: %s", exc)
             err_payload = json.dumps({"error": str(exc), "retry_after": exc.retry_after})
+            yield f"event: error\ndata: {err_payload}\n\n"
+        except asyncio.TimeoutError:
+            logger.error("SSE stream overall timeout exceeded (120s).")
+            err_payload = json.dumps({"error": "Request timed out. The query may be too complex or the backend is overloaded."})
             yield f"event: error\ndata: {err_payload}\n\n"
         except Exception as exc:
             logger.error("SSE stream encountered exception: %s", exc, exc_info=True)

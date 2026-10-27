@@ -20,9 +20,16 @@ Usage:
 
 from __future__ import annotations
 
+import os
+import time
 import logging
 from pathlib import Path
 from typing import List, Optional
+
+# Ensure OpenMP runtime and HuggingFace cache compatibility on Windows
+os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS", "1")
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +96,7 @@ class ColPaliModel:
             model_name,
             torch_dtype=self._dtype,
             device_map=self.device,
+            low_cpu_mem_usage=True,
         ).eval()
 
         self._processor: ColPaliProcessor = ColPaliProcessor.from_pretrained(model_name)
@@ -119,6 +127,9 @@ class ColPaliModel:
     ) -> List[List[List[float]]]:
         """Embed multiple images in batches to manage GPU memory.
 
+        On CPU, processes images one-by-one to maximize CPU cache locality,
+        reduce peak memory overhead, and provide continuous progress logging.
+
         Args:
             images:     List of PIL images.
             batch_size: Number of images per GPU forward pass.
@@ -126,18 +137,35 @@ class ColPaliModel:
         Returns:
             List of per-image multi-vector embeddings.
         """
+        if self.device == "cpu" and torch is not None:
+            # Prevent PyTorch OpenMP from starving the FastAPI event loop and OS
+            torch.set_num_threads(max(1, min(4, os.cpu_count() or 1)))
+
         all_embeddings: List[List[List[float]]] = []
-        for i in range(0, len(images), batch_size):
-            batch_imgs = images[i : i + batch_size]
+        total = len(images)
+        step = 1 if self.device == "cpu" else max(1, batch_size)
+
+        logger.info(
+            "Embedding %d image(s) using ColPali on %s (batch_size=%d)...",
+            total,
+            self.device,
+            step,
+        )
+
+        for i in range(0, total, step):
+            t0 = time.time()
+            batch_imgs = images[i : i + step]
             batch = self._processor.process_images(batch_imgs).to(self.device)
             with torch.no_grad():
                 embeddings = self._model(**batch)  # (B, num_patches, dim)
             all_embeddings.extend(embeddings.cpu().float().tolist())
-            logger.debug(
-                "Embedded image batch %d-%d / %d",
-                i,
-                min(i + batch_size, len(images)),
-                len(images),
+            elapsed = time.time() - t0
+            end_idx = min(i + step, total)
+            logger.info(
+                "ColPali: Embedded page %d/%d (took %.1fs).",
+                end_idx,
+                total,
+                elapsed,
             )
         return all_embeddings
 
@@ -205,13 +233,13 @@ class ColPaliModel:
         if torch is None:
             return None
         if dtype_str is None or dtype_str == "auto":
-            return torch.bfloat16 if torch.cuda.is_available() else torch.float32
+            return getattr(torch, "bfloat16", torch.float32)
         mapping = {
             "float32": torch.float32,
             "float16": torch.float16,
             "bfloat16": torch.bfloat16,
         }
-        return mapping.get(dtype_str, torch.float32)
+        return mapping.get(dtype_str, getattr(torch, "bfloat16", torch.float32))
 
     @property
     def is_available(self) -> bool:

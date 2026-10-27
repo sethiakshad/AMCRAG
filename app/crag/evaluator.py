@@ -74,8 +74,16 @@ class HeuristicCRAGEvaluator(BaseCRAGEvaluator):
         # Combine candidate retrieval/reranker score with lexical overlap
         raw_score = candidate.retrieval_score if candidate.retrieval_score is not None else 0.5
         
-        # Handle RRF reciprocal rank fusion scores (typically in range 0.005 - 0.04)
-        if 0.0 < raw_score <= 0.08:
+        # Handle ColPali multi-vector MaxSim scores (typically in range 2.0 - 15.0)
+        # or RRF reciprocal rank fusion scores (typically in range 0.005 - 0.04)
+        if getattr(candidate, "retrieval_method", "") == "colpali" or getattr(candidate, "candidate_type", "") == "visual_page":
+            if raw_score >= 2.0:
+                base_score = min(1.0, 0.70 + min(0.30, ((raw_score - 2.0) / 10.0) * 0.30))
+            elif raw_score >= 0.5:
+                base_score = min(1.0, 0.50 + ((raw_score - 0.5) / 1.5) * 0.20)
+            else:
+                base_score = max(0.0, raw_score)
+        elif 0.0 < raw_score <= 0.08:
             # Map top RRF candidates (0.016+ rank 1 in single/multi modalities) to confident base [0.70 - 0.95]
             base_score = min(1.0, 0.50 + (raw_score / 0.033) * 0.45)
         elif raw_score > 1.0:
@@ -86,19 +94,32 @@ class HeuristicCRAGEvaluator(BaseCRAGEvaluator):
             base_score = raw_score
 
         # Composite score
-        relevance_score = round(0.4 * base_score + 0.6 * overlap_ratio, 4)
-        is_relevant = relevance_score >= 0.5
-
-        # Split content into sentences/strips for CRAG knowledge refinement
-        sentences = [s.strip() for s in re.split(r"[.!?\n]+", content) if len(s.strip()) > 15]
-        relevant_strips = [s for s in sentences if any(term in s for term in eval_terms)][:3]
+        is_visual = (
+            getattr(candidate, "candidate_type", "") == "visual_page"
+            or getattr(candidate, "modality", "") == "visual_page"
+            or not content.strip()
+            or content.strip().endswith(f"page {getattr(candidate, 'page_number', 1)}")
+        )
+        if is_visual:
+            # For visual page candidates without raw text (scanned pages / diagrams),
+            # evaluate based on the calibrated visual retrieval score rather than text lexical overlap
+            relevance_score = round(base_score, 4)
+            is_relevant = relevance_score >= 0.45
+            notes = f"Visual scoring: calibrated retriever score {base_score:.2f} (modality=visual_page)"
+            relevant_strips = [f"Visual page {getattr(candidate, 'page_number', 1)} from {getattr(candidate, 'source_filename', 'document')}"]
+        else:
+            relevance_score = round(0.4 * base_score + 0.6 * overlap_ratio, 4)
+            is_relevant = relevance_score >= 0.5
+            notes = f"Heuristic scoring: lexical overlap {overlap_ratio:.2f}, calibrated retriever score {base_score:.2f}"
+            sentences = [s.strip() for s in re.split(r"[.!?\n]+", content) if len(s.strip()) > 15]
+            relevant_strips = [s for s in sentences if any(term in s for term in eval_terms)][:3]
 
         return CandidateEvaluation(
             candidate_id=candidate.candidate_id,
             relevance_score=relevance_score,
             is_relevant=is_relevant,
             extracted_strips=relevant_strips,
-            notes=f"Heuristic scoring: lexical overlap {overlap_ratio:.2f}, calibrated retriever score {base_score:.2f}",
+            notes=notes,
         )
 
 

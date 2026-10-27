@@ -78,6 +78,8 @@ class ColPaliIndexer:
         collection: str = COLPALI_COLLECTION,
         batch_size: int = 4,
         recreate: bool = False,
+        client: Optional["QdrantClient"] = None,
+        max_pages: int = 20,
     ) -> None:
         if not _QDRANT_AVAILABLE:
             raise ImportError(
@@ -91,7 +93,20 @@ class ColPaliIndexer:
         self.model = model
         self.collection = collection
         self.batch_size = batch_size
-        self._client = QdrantClient(url=qdrant_url)
+        self.max_pages = max_pages
+        if client is not None:
+            self._client = client
+        else:
+            try:
+                self._client = QdrantClient(url=qdrant_url, timeout=2.0)
+                self._client.get_collections()
+            except Exception as exc:
+                logger.info(
+                    "Qdrant server at %s unavailable (%s). Falling back to local embedded Qdrant storage at ./data/colpali_qdrant_storage.",
+                    qdrant_url,
+                    exc,
+                )
+                self._client = QdrantClient(path="./data/colpali_qdrant_storage")
 
         self._ensure_collection(recreate=recreate)
 
@@ -119,15 +134,26 @@ class ColPaliIndexer:
             logger.warning("No rendered pages provided to index for document '%s'.", document_id)
             return 0
 
+        pages_to_index = rendered_pages
+        if self.max_pages and len(rendered_pages) > self.max_pages:
+            logger.warning(
+                "Document '%s' has %d pages. Visual indexing is capped at the first %d pages on %s to prevent CPU delays.",
+                document_id,
+                len(rendered_pages),
+                self.max_pages,
+                getattr(self.model, "device", "cpu"),
+            )
+            pages_to_index = rendered_pages[: self.max_pages]
+
         logger.info(
             "Indexing %d page(s) for document '%s' into Qdrant collection '%s'.",
-            len(rendered_pages),
+            len(pages_to_index),
             document_id,
             self.collection,
         )
 
         # Load all images upfront for batch embedding
-        images, valid_pages = self._load_images(rendered_pages)
+        images, valid_pages = self._load_images(pages_to_index)
         if not images:
             logger.error("No valid images could be loaded for document '%s'.", document_id)
             return 0
@@ -138,19 +164,27 @@ class ColPaliIndexer:
         # Build Qdrant PointStructs and upsert
         points = []
         for page_info, page_vectors in zip(valid_pages, all_embeddings):
-            point_id = self._make_point_id(document_id, page_info.page_number)
+            page_num = getattr(page_info, "page_number", None) or (page_info.get("page_number", 1) if isinstance(page_info, dict) else 1)
+            img_path = getattr(page_info, "image_path", "") or (page_info.get("image_path", "") if isinstance(page_info, dict) else "")
+            width = getattr(page_info, "width", 0) or (page_info.get("width", 0) if isinstance(page_info, dict) else 0)
+            height = getattr(page_info, "height", 0) or (page_info.get("height", 0) if isinstance(page_info, dict) else 0)
+            dpi = getattr(page_info, "dpi", 150) or (page_info.get("dpi", 150) if isinstance(page_info, dict) else 150)
+            title = getattr(page_info, "title", "") or (page_info.get("title", "") if isinstance(page_info, dict) else "")
+            caption = getattr(page_info, "caption", "") or (page_info.get("caption", "") if isinstance(page_info, dict) else "")
+
+            point_id = self._make_point_id(document_id, page_num)
             payload = {
                 "document_id":    document_id,
-                "page_number":    page_info.page_number,
+                "page_number":    page_num,
                 "source_filename": source_filename or "",
-                "image_path":     page_info.image_path,
-                "width":          page_info.width,
-                "height":         page_info.height,
-                "dpi":            page_info.dpi,
-                "title":          page_info.title or "",
-                "caption":        page_info.caption or "",
+                "image_path":     img_path,
+                "width":          width,
+                "height":         height,
+                "dpi":            dpi,
+                "title":          title or "",
+                "caption":        caption or "",
                 "modality":       "visual_page",
-                "chunk_id":       f"{document_id}_page_{page_info.page_number:04d}",
+                "chunk_id":       f"{document_id}_page_{page_num:04d}",
             }
             points.append(
                 qmodels.PointStruct(
@@ -239,17 +273,21 @@ class ColPaliIndexer:
 
     @staticmethod
     def _load_images(
-        rendered_pages: List["PageRenderInfo"],
-    ) -> tuple[List, List["PageRenderInfo"]]:
+        rendered_pages: List[Any],
+    ) -> tuple[List, List[Any]]:
         """Load PIL images from disk, skipping missing files with a warning."""
         images = []
         valid_pages = []
         for page_info in rendered_pages:
-            img_path = Path(page_info.image_path)
+            img_path_str = getattr(page_info, "image_path", None) or (page_info.get("image_path") if isinstance(page_info, dict) else None)
+            page_num = getattr(page_info, "page_number", None) or (page_info.get("page_number", 1) if isinstance(page_info, dict) else 1)
+            if not img_path_str:
+                continue
+            img_path = Path(img_path_str)
             if not img_path.exists():
                 logger.warning(
                     "Rendered image not found, skipping page %d: %s",
-                    page_info.page_number,
+                    page_num,
                     img_path,
                 )
                 continue
@@ -260,7 +298,7 @@ class ColPaliIndexer:
             except Exception as exc:
                 logger.warning(
                     "Failed to open image for page %d (%s): %s",
-                    page_info.page_number,
+                    page_num,
                     img_path,
                     exc,
                 )

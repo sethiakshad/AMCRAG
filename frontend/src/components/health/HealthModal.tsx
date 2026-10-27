@@ -115,7 +115,7 @@ export const HealthModal: React.FC<HealthModalProps> = ({
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-300)', marginTop: '2px' }}>
                 {isOffline
-                  ? 'FastAPI server at http://127.0.0.1:8001 is not responding.'
+                  ? 'FastAPI backend server is not responding. Please ensure the backend is running.'
                   : `Version ${health?.version || '1.0.0'} — Production Orchestrator`}
               </div>
             </div>

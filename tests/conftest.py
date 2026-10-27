@@ -15,6 +15,11 @@ from app.config import Settings
 
 
 @pytest.fixture
+def anyio_backend():
+    return "asyncio"
+
+
+@pytest.fixture
 def test_settings(tmp_path: Path) -> Settings:
     """Create isolated Settings pointing to a temporary directory."""
     return Settings(

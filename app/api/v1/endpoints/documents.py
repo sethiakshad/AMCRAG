@@ -10,7 +10,7 @@ import subprocess
 import uuid
 from pathlib import Path
 from typing import Any, List, Optional
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, status
 
 from app.api.deps import (
     get_duplicate_detector,
@@ -51,6 +51,7 @@ router = APIRouter()
 async def upload_document(
     file: UploadFile = File(..., description="PDF document file to process"),
     force: bool = Form(False, description="Force re-extraction and re-indexing even if already cached"),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
     settings: Settings = Depends(get_settings),
     pipeline: DocumentProcessingPipeline = Depends(get_pipeline),
     duplicate_detector: DuplicateDetector = Depends(get_duplicate_detector),
@@ -190,17 +191,23 @@ async def upload_document(
         logger.warning("Downstream text chunk indexing encountered non-fatal error: %s", exc)
         indexed_chunks = len(output.chunks)
 
-    try:
-        indexed_pages = index_colpali_pages(
+    # Dispatch ColPali visual indexing as background task so HTTP upload returns immediately
+    if visual_bridge is not None and getattr(visual_bridge, "enabled", False) and output.rendered_pages:
+        logger.info(
+            "Scheduling background ColPali visual indexing for %d page(s) of document '%s'.",
+            len(output.rendered_pages),
+            output.document_id,
+        )
+        background_tasks.add_task(
+            index_colpali_pages,
             rendered_pages=output.rendered_pages,
             document_id=output.document_id,
             source_filename=safe_filename,
             colpali_bridge=visual_bridge,
             qdrant_url=settings.qdrant_url,
         )
-    except Exception as exc:
-        logger.warning("Downstream ColPali page indexing encountered non-fatal error: %s", exc)
-        indexed_pages = len(output.rendered_pages)
+    else:
+        logger.info("ColPali visual indexing skipped (bridge disabled or no pages rendered).")
 
     return DocumentUploadResponse(
         document_id=output.document_id,
@@ -209,7 +216,7 @@ async def upload_document(
         page_count=output.metadata.page_count,
         chunk_count=output.total_chunks,
         image_count=len(output.rendered_pages),
-        message=f"Successfully indexed {output.total_chunks} chunks and {len(output.rendered_pages)} pages.",
+        message=f"Successfully indexed {output.total_chunks} chunks and rendered {len(output.rendered_pages)} pages (ColPali visual indexing running in background).",
     )
 
 
@@ -236,6 +243,9 @@ def list_documents(
         is_scanned = False
         ocr_needed = False
         status_val = item.get("status")
+        page_count = 0
+        file_size = None
+        timestamp = None
 
         if output_json.exists():
             try:

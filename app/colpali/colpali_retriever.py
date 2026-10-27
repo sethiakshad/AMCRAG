@@ -73,6 +73,7 @@ class ColPaliRetriever:
         collection: str = COLPALI_COLLECTION,
         top_k: int = 5,
         enabled: bool = True,
+        client: Optional["QdrantClient"] = None,
     ) -> None:
         self.model = model
         self.collection = collection
@@ -84,7 +85,19 @@ class ColPaliRetriever:
                 "qdrant-client is not installed. Run: pip install qdrant-client"
             )
 
-        self._client = QdrantClient(url=qdrant_url)
+        if client is not None:
+            self._client = client
+        else:
+            try:
+                self._client = QdrantClient(url=qdrant_url, timeout=2.0)
+                self._client.get_collections()
+            except Exception as exc:
+                logger.info(
+                    "Qdrant server at %s unavailable (%s). Falling back to local embedded Qdrant storage at ./data/colpali_qdrant_storage.",
+                    qdrant_url,
+                    exc,
+                )
+                self._client = QdrantClient(path="./data/colpali_qdrant_storage")
 
     # ------------------------------------------------------------------
     # Public API

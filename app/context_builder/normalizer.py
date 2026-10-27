@@ -143,14 +143,19 @@ class EvidenceNormalizer:
                 score = getattr(item, "score", None) or getattr(item, "fused_score", None)
 
             source_ref = source_filename or document_id
-            image_ref = getattr(item, "page_reference", None) or getattr(item, "image_ref", None)
-
             metadata = getattr(item, "metadata", {}) or {}
             if hasattr(metadata, "model_dump"):
                 metadata = metadata.model_dump()
             elif not isinstance(metadata, dict):
                 metadata = {}
 
+            image_ref = (
+                getattr(item, "page_reference", None)
+                or getattr(item, "image_ref", None)
+                or getattr(item, "image_path", None)
+                or metadata.get("image_path")
+                or metadata.get("page_reference")
+            )
             image_desc = metadata.get("caption") or metadata.get("title") or metadata.get("description")
             spans = strips_map.get(evidence_id, [])
 
@@ -215,11 +220,19 @@ class EvidenceNormalizer:
             )
 
             source_ref = item.get("source_url") or item.get("source_ref") or source_filename or document_id
-            image_ref = item.get("page_reference") or item.get("image_ref") or item.get("image_path")
-
             metadata = item.get("metadata") or {}
-            if not isinstance(metadata, dict):
+            if hasattr(metadata, "model_dump"):
+                metadata = metadata.model_dump()
+            elif not isinstance(metadata, dict):
                 metadata = {}
+
+            image_ref = (
+                item.get("page_reference")
+                or item.get("image_ref")
+                or item.get("image_path")
+                or metadata.get("image_path")
+                or metadata.get("page_reference")
+            )
 
             image_desc = (
                 item.get("image_description")
