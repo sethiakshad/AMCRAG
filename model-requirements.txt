@@ -1,0 +1,163 @@
+# ==============================================================================
+# AMCRAG — MODEL REQUIREMENTS & SPECIFICATION MANIFEST
+# Adaptive Multimodal Corrective Retrieval-Augmented Generation
+# ==============================================================================
+# This file specifies all machine learning, vision-language, transformer, 
+# and foundation model checkpoints utilized across AMCRAG, accompanied by
+# their exact parameter specifications, architectures, hardware requirements,
+# configuration environment variables, and pip dependency version constraints.
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. DENSE SEMANTIC TEXT EMBEDDING MODEL (Person 2: Text Retrieval)
+# ------------------------------------------------------------------------------
+# Model ID:               BAAI/bge-base-en-v1.5
+# Hugging Face Hub:       https://huggingface.co/BAAI/bge-base-en-v1.5
+# Architecture:           BERT-base (12 layers, 768 hidden dim, 12 attention heads)
+# Parameters:             109M parameters (~438 MB FP32 weights)
+# Embedding Dimension:    768 dimensions (L2-normalized)
+# Max Sequence Length:    512 tokens
+# Distance Metric:        Cosine Similarity in Qdrant Vector Store
+# Asymmetric Query Prefix:"Represent this sentence for searching relevant passages: "
+# Passage Indexing:       Indexed without instruction prefix
+# Target Hardware:        CUDA GPU (~1 GB VRAM) / CPU Fallback (~1.5 GB RAM)
+# Config Variable:        BGE_MODEL_NAME=BAAI/bge-base-en-v1.5
+# Implementation:         app/retrieval/dense_engine.py -> BGEDenseEngine
+# ------------------------------------------------------------------------------
+sentence-transformers>=2.2.2
+torch>=2.1.0
+numpy>=1.24.0
+
+# ------------------------------------------------------------------------------
+# 2. MULTIMODAL VISION-LANGUAGE MODEL (Person 3: ColPali Visual Retrieval)
+# ------------------------------------------------------------------------------
+# Primary Checkpoint:     vidore/colpali-v1.2 (LoRA adapter & processor configs)
+# Base Model Weights:     vidore/colpaligemma-3b-pt-448-base (~6.1 GB weights)
+# Foundation Model:       Google PaliGemma-3B (SigLIP-So400m-patch14-448 + Gemma-2B)
+# Architecture:           Late-Interaction Vision-Language Model (VLM)
+# Parameters:             ~3.0 Billion parameters
+# Image Resolution:       448x448 native vision patches rendered at 150 DPI
+# Multi-Vector Output:    
+#   - Page Images:        ~1024 patch vectors per page (128-dim per vector, L2-norm)
+#   - Text Query:         ~32 token vectors per query (128-dim per vector, L2-norm)
+# Scoring Algorithm:      Late-interaction MaxSim (mean of token max cosine similarities)
+# Precision / Dtype:      torch.bfloat16 (CUDA recommended) / torch.float32 (CPU)
+# Target Hardware:        NVIDIA GPU with >= 6-8 GB VRAM (CUDA); CPU functional
+# Config Variable:        COLPALI_MODEL_NAME=vidore/colpali-v1.2
+#                         AMCRAG_COLPALI_MODEL_NAME=vidore/colpali-v1.2
+#                         COLPALI_TORCH_DTYPE=bfloat16
+# Implementation:         app/colpali/colpali_model.py -> ColPaliModel
+# ------------------------------------------------------------------------------
+colpali-engine>=0.3.0
+transformers>=4.40.0
+einops>=0.7.0
+pillow>=10.0.0
+huggingface-hub>=0.23.0
+
+# ------------------------------------------------------------------------------
+# 3. JOINT CROSS-ENCODER RERANKER MODEL (Person 3 & Person 2: Candidate Reranking)
+# ------------------------------------------------------------------------------
+# Model ID:               BAAI/bge-reranker-base
+# Hugging Face Hub:       https://huggingface.co/BAAI/bge-reranker-base
+# Architecture:           XLM-RoBERTa / RoBERTa-base cross-encoder
+# Parameters:             278M parameters (~1.1 GB FP32 weights)
+# Max Sequence Length:    512 tokens
+# Input Format:           Pairwise [CLS] query [SEP] candidate_passage [SEP]
+# Output Representation:  Single calibrated scalar logit / sigmoid relevance score
+# Target Hardware:        CUDA GPU (~1.5 GB VRAM) / CPU Fallback (~2 GB RAM)
+# Config Variable:        RERANKER_MODEL=BAAI/bge-reranker-base
+#                         BGE_RERANKER_MODEL=BAAI/bge-reranker-base
+# Implementation:         app/colpali/colpali_reranker.py & app/retrieval/
+# ------------------------------------------------------------------------------
+# (Shared with sentence-transformers & transformers above)
+
+# ------------------------------------------------------------------------------
+# 4. CORRECTIVE RAG (CRAG) EVALUATOR MODEL (Person 4: Evidence Quality Gate)
+# ------------------------------------------------------------------------------
+# Primary Checkpoint:     Mindie/CRAG-Evaluator
+# Alternative / Source:   HuskyInSalt/CRAG (T5-Large CRAG Checkpoint)
+# Base Architecture:      Google T5-Large (Encoder-Decoder Transformer)
+# Parameters:             ~770M parameters (~3.1 GB weights)
+# Max Sequence Length:    512 tokens
+# Input Delimiter:        "{query} [SEP] {candidate_content}"
+# Output Scoring:         Logit calibrated into [0.0, 1.0] confidence score
+# Dynamic Thresholds:     Upper delta = 0.65 (CORRECT -> proceed to generation)
+#                         Lower delta = 0.30 (INCORRECT -> reformulate / re-retrieve)
+#                         Intermediate = AMBIGUOUS (retry_once policy)
+# Fallback Mechanism:     HeuristicCRAGEvaluator (lexical token overlap + retriever score)
+# Target Hardware:        CUDA GPU (~3.5 GB VRAM) / CPU Fallback (~4 GB RAM)
+# Config Variable:        CRAG_EVALUATOR_PATH=Mindie/CRAG-Evaluator
+#                         CRAG_UPPER_THRESHOLD=0.65
+#                         CRAG_LOWER_THRESHOLD=0.30
+# Implementation:         app/crag/evaluator.py -> T5CRAGEvaluator
+# ------------------------------------------------------------------------------
+# (Shared with transformers & torch above)
+
+# ------------------------------------------------------------------------------
+# 5. ANSWER GENERATION LARGE LANGUAGE MODELS (Person 5: Generation & Orchestrator)
+# ------------------------------------------------------------------------------
+#
+# A. OLLAMA CLOUD / LOCAL OLLAMA PROVIDER (Default Provider: ollama)
+# Active Default Model:   gemma4:31b (Google Gemma 4, 31 Billion parameters)
+# Alternative Models:     llama3.2 (Meta Llama 3.2 3B/1B)
+#                         deepseek-r1 (DeepSeek R1 reasoning distillation)
+#                         gpt-oss:120b (High-capacity open weights)
+# Protocol:               REST / Streaming SSE via ollama.Client & AsyncClient
+# Endpoints:              https://ollama.com (Cloud) / http://localhost:11434 (Local)
+# Config Variables:       AMCRAG_LLM_PROVIDER=ollama
+#                         AMCRAG_OLLAMA_MODEL=gemma4:31b
+#                         AMCRAG_OLLAMA_BASE_URL=https://ollama.com
+#                         OLLAMA_API_KEY=<ollama-cloud-api-key>
+#
+# B. GOOGLE GEMINI MULTIMODAL PROVIDER (Provider: gemini)
+# Primary Model:          gemini-1.5-flash (Fast, 1M context, native vision support)
+# Advanced Models:        gemini-1.5-pro, gemini-2.0-flash, gemini-3.8-flash
+# Native Capabilities:    Direct PIL.Image page evidence inspection + structured text
+# Config Variables:       AMCRAG_LLM_PROVIDER=gemini
+#                         AMCRAG_GEMINI_MODEL=gemini-1.5-flash
+#                         GEMINI_API_KEY=<gemini-api-key>
+#
+# C. OPENAI API PROVIDER (Provider: openai)
+# Models:                 gpt-4o, gpt-4o-mini, gpt-4-turbo
+# Config Variables:       AMCRAG_LLM_PROVIDER=openai
+#                         OPENAI_API_KEY=<openai-api-key>
+#
+# D. DETERMINISTIC TESTING & CI ENGINE (Provider: mock)
+# Engine:                 app/services/generator.py -> _generate_mock
+# Zero-Hallucination Halt:Immediate refusal (< 0.1 ms) on insufficient evidence
+# ------------------------------------------------------------------------------
+ollama>=0.4.0
+google-genai>=0.1.0
+openai>=1.0.0
+tiktoken>=0.7.0
+
+# ------------------------------------------------------------------------------
+# 6. DOCUMENT PARSING, OCR & LAYOUT MODELS (Person 1: Ingestion)
+# ------------------------------------------------------------------------------
+# Primary Layout Engine:  IBM Docling (DocLayNet + TableFormer + Layout OCR)
+# Fallback Engine:        PyMuPDF (fitz) vector text extractor & DPI page renderer
+# Resolution:             150 DPI PNG rendering for ColPali visual input
+# ------------------------------------------------------------------------------
+pymupdf>=1.24.0
+# docling>=2.0.0          # Optional: deep layout, table, and formula extraction
+
+# ------------------------------------------------------------------------------
+# 7. VECTOR DATABASE & HYBRID RETRIEVAL CLIENTS (Infrastructure)
+# ------------------------------------------------------------------------------
+# Vector Database:        Qdrant (Multi-vector ColPali & Dense BGE embeddings)
+# Sparse Engine:          BM25Okapi (k1=1.5, b=0.75) via rank-bm25
+# Fusion Model:           Reciprocal Rank Fusion (RRF, k=60, w_dense=1, w_sparse=1, w_visual=1)
+# ------------------------------------------------------------------------------
+qdrant-client>=1.9.0
+rank-bm25>=0.2.2
+
+# ------------------------------------------------------------------------------
+# 8. PIPELINE ORCHESTRATION, CONFIGURATION & TESTING DEPENDENCIES
+# ------------------------------------------------------------------------------
+fastapi>=0.110.0
+uvicorn>=0.27.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+python-dotenv>=1.0.0
+python-multipart>=0.0.9
+pytest>=8.0.0
