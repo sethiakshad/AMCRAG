@@ -76,17 +76,23 @@ class CRAGController:
             )
 
         # Check if attempts are exhausted and evidence remains inadequate
-        is_exhausted = attempt_number >= self.max_attempts and decision.label in ("INCORRECT", "AMBIGUOUS")
+        is_exhausted = (
+            (attempt_number >= self.max_attempts and decision.label in ("INCORRECT", "AMBIGUOUS"))
+            or (decision.label == "INCORRECT" and not decision.needs_correction)
+            or (decision.label == "AMBIGUOUS" and not decision.needs_correction and decision.score < 0.55)
+        )
 
         # Step 4: Filter accepted evidence (Knowledge refinement)
         accepted = self.decision_engine.filter_accepted_candidates(
             candidates=candidates, decision=decision
         )
 
+        has_usable_evidence = bool(accepted) and not is_exhausted and decision.label != "INCORRECT"
+
         return CRAGResult(
             decision=decision,
             reformulated_query=None,
             accepted_candidates=accepted,
-            can_proceed_to_generation=not is_exhausted,
-            insufficient_evidence=is_exhausted,
+            can_proceed_to_generation=has_usable_evidence,
+            insufficient_evidence=not has_usable_evidence,
         )

@@ -107,6 +107,25 @@ class HeuristicCRAGEvaluator(BaseCRAGEvaluator):
             is_relevant = relevance_score >= 0.45
             notes = f"Visual scoring: calibrated retriever score {base_score:.2f} (modality=visual_page)"
             relevant_strips = [f"Visual page {getattr(candidate, 'page_number', 1)} from {getattr(candidate, 'source_filename', 'document')}"]
+        elif overlap_ratio == 0.0:
+            # Zero meaningful terms matched: candidate is completely irrelevant
+            relevance_score = 0.0
+            is_relevant = False
+            notes = "Heuristic scoring: zero lexical overlap with query terms (candidate irrelevant)"
+            relevant_strips = []
+        elif len(eval_terms) >= 4 and (overlap_ratio < 0.35 or matches < 3):
+            # Weak partial overlap on a complex/multi-term query: candidate lacks majority of key entities
+            relevance_score = round(base_score * overlap_ratio * 0.8, 4)
+            is_relevant = False
+            notes = f"Heuristic scoring: insufficient query coverage {overlap_ratio:.2f} ({matches}/{len(eval_terms)} terms), below threshold"
+            sentences = [s.strip() for s in re.split(r"[.!?\n]+", content) if len(s.strip()) > 15]
+            relevant_strips = [s for s in sentences if any(term in s for term in eval_terms)][:1]
+        elif len(eval_terms) >= 2 and matches < 2:
+            # 1-word overlap on multi-term query: candidate is noise
+            relevance_score = round(base_score * overlap_ratio * 0.5, 4)
+            is_relevant = False
+            notes = f"Heuristic scoring: weak lexical overlap {overlap_ratio:.2f} ({matches}/{len(eval_terms)} terms)"
+            relevant_strips = []
         else:
             relevance_score = round(0.4 * base_score + 0.6 * overlap_ratio, 4)
             is_relevant = relevance_score >= 0.5

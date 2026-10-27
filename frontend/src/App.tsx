@@ -13,9 +13,11 @@ import {
   Moon,
   Plus,
   FileText,
+  BarChart2,
 } from 'lucide-react';
 import { ChatWindow } from './components/chat/ChatWindow';
 import { DocumentManager } from './components/documents/DocumentManager';
+import { ComparisonDashboard } from './components/comparison/ComparisonDashboard';
 import { HealthIndicator } from './components/health/HealthIndicator';
 import { useHealth } from './hooks/useHealth';
 import { useDocuments } from './hooks/useDocuments';
@@ -35,10 +37,25 @@ const StarburstIcon: React.FC<{ size?: number; className?: string }> = ({ size =
 );
 
 export function App() {
-  const [activeTab, setActiveTab] = useState<'chat' | 'documents'>('chat');
+  const getInitialTab = (): 'chat' | 'documents' | 'comparison' => {
+    const hash = window.location.hash.toLowerCase();
+    if (hash === '#comparison' || hash === '#compare' || hash === '#rag-comparison') {
+      return 'comparison';
+    }
+    if (hash === '#documents') {
+      return 'documents';
+    }
+    return 'chat';
+  };
+
+  const [activeTab, setActiveTab] = useState<'chat' | 'documents' | 'comparison'>(getInitialTab);
   const [preselectedDocId, setPreselectedDocId] = useState<string | null>(null);
   const [chatSessionId, setChatSessionId] = useState<number>(1);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+
+  useEffect(() => {
+    window.location.hash = activeTab;
+  }, [activeTab]);
 
   const { health, isLoading: isHealthLoading, isOffline, checkHealth } = useHealth();
   const { allDocuments } = useDocuments();
@@ -137,6 +154,15 @@ export function App() {
               </span>
             )}
           </button>
+
+          <button
+            onClick={() => setActiveTab('comparison')}
+            className="sb-row"
+            aria-current={activeTab === 'comparison'}
+          >
+            <BarChart2 size={17} style={{ color: activeTab === 'comparison' ? 'var(--brand)' : 'var(--text-300)' }} />
+            <span>RAG Comparison</span>
+          </button>
         </div>
 
         {/* Section: Recent Indexed Documents */}
@@ -212,7 +238,11 @@ export function App() {
         <header className="app-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-100)' }}>
-              {activeTab === 'chat' ? 'AMCRAG Research Assistant' : 'Knowledge Base Catalog'}
+              {activeTab === 'chat'
+                ? 'AMCRAG Research Assistant'
+                : activeTab === 'documents'
+                ? 'Knowledge Base Catalog'
+                : 'AMCRAG vs Normal RAG Comparison Dashboard'}
             </span>
             {activeTab === 'chat' && preselectedDocId && (
               <span
@@ -255,9 +285,13 @@ export function App() {
               onClearPreselectedDoc={() => setPreselectedDocId(null)}
               onStartNewChat={handleStartNewChat}
             />
-          ) : (
+          ) : activeTab === 'documents' ? (
             <div style={{ flex: 1, overflowY: 'auto' }}>
               <DocumentManager onChatWithDoc={handleChatWithDoc} />
+            </div>
+          ) : (
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              <ComparisonDashboard />
             </div>
           )}
         </div>

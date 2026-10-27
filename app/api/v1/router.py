@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import documents, health, query
+from app.api.v1.endpoints import comparison, documents, health, normal_rag, query
 
 api_router = APIRouter()
 
@@ -16,3 +16,10 @@ api_router.include_router(documents.router, prefix="/documents", tags=["Knowledg
 
 # 3. Subsystem health check: /api/v1/health
 api_router.include_router(health.router, prefix="/health", tags=["Health & Readiness"])
+
+# 4. Normal RAG baseline endpoints: /api/v1/normal-rag
+api_router.include_router(normal_rag.router, prefix="/normal-rag", tags=["Normal RAG Baseline"])
+
+# 5. Comparative benchmark endpoints: /api/v1/comparison
+api_router.include_router(comparison.router, prefix="/comparison", tags=["RAG Comparison Benchmark"])
+
