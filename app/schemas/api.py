@@ -145,6 +145,9 @@ class DocumentSummary(BaseModel):
     is_scanned: bool = Field(default=False, description="Whether document was identified as scanned images")
     ocr_needed: bool = Field(default=False, description="Whether OCR is needed to extract textual content")
     status: Optional[str] = Field(default=None, description="Document processing status")
+    visual_indexed: bool = Field(default=False, description="Whether visual page embeddings are persisted in Qdrant")
+    visual_indexing_status: str = Field(default="not_started", description="Visual indexing state: 'not_started', 'pending', 'indexing', 'indexed', 'failed'")
+    visual_pages_indexed: int = Field(default=0, description="Number of visual pages successfully indexed into Qdrant")
 
     model_config = {"extra": "allow"}
 
@@ -158,6 +161,9 @@ class DocumentDetailResponse(BaseModel):
     chunk_count: int = Field(default=0, description="Number of text chunks")
     image_count: int = Field(default=0, description="Number of rendered page images")
     status: str = Field(default="indexed", description="Indexing status")
+    visual_indexed: bool = Field(default=False, description="Whether visual page embeddings are persisted in Qdrant")
+    visual_indexing_status: str = Field(default="not_started", description="Visual indexing state: 'not_started', 'pending', 'indexing', 'indexed', 'failed'")
+    visual_pages_indexed: int = Field(default=0, description="Number of visual pages successfully indexed into Qdrant")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Document metadata")
     page_images: List[str] = Field(default_factory=list, description="List of rendered page image paths")
 

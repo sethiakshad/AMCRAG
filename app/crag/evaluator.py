@@ -5,6 +5,7 @@ Follows Sections 4.7, 6.1, 8.3, and 10.4 of AMCRAG Central Project Documentation
 
 from abc import ABC, abstractmethod
 import logging
+import math
 import os
 import re
 from typing import Sequence
@@ -57,9 +58,115 @@ class HeuristicCRAGEvaluator(BaseCRAGEvaluator):
         "yours", "yourself", "yourselves", "tell", "acc", "according"
     }
 
+    def _evaluate_visual_candidate(
+        self, query: str, candidate: RetrievalCandidate
+    ) -> CandidateEvaluation:
+        """Evaluates visual page candidate using calibrated visual retrieval scores and optional OCR text.
+
+        Distinguishes raw ColPali MaxSim score vs. RRF fused score vs. CRAG confidence.
+        Does not penalize pure visual candidates (diagrams, scans) lacking OCR text.
+        """
+        meta = getattr(candidate, "metadata", {}) or {}
+
+        # 1. Distinguish original visual retrieval score vs fused ranking score
+        colpali_score = meta.get("colpali_score")
+        if colpali_score is None and getattr(candidate, "retrieval_method", "") == "colpali":
+            colpali_score = candidate.retrieval_score
+
+        raw_score = candidate.retrieval_score if candidate.retrieval_score is not None else 0.5
+        rank = getattr(candidate, "retrieval_rank", meta.get("colpali_rank", 1))
+
+        # 2. Calibrate visual evidence score to CRAG confidence [0.0, 1.0]
+        if colpali_score is not None:
+            cs = float(colpali_score)
+            if cs > 1.0:
+                # Unnormalized multi-vector MaxSim sum (typically 2.0 to 30.0)
+                if cs <= 3.5:
+                    base_score = max(0.10, 0.10 + (cs / 3.5) * 0.18)  # [0.10, 0.28] -> INCORRECT (< 0.30)
+                elif cs < 8.0:
+                    base_score = 0.30 + ((cs - 3.5) / 4.5) * 0.34    # [0.30, 0.64] -> AMBIGUOUS
+                elif cs <= 22.0:
+                    base_score = 0.65 + min(1.0, (cs - 8.0) / 14.0) * 0.23  # [0.65, 0.88] -> CORRECT (>= 0.65)
+                else:
+                    base_score = min(0.96, 0.88 + ((cs - 22.0) / 18.0) * 0.08)
+            else:
+                # Normalized Cosine MaxSim average (0.0 to 1.0)
+                if cs < 0.25:
+                    base_score = max(0.10, 0.10 + (cs / 0.25) * 0.18)  # [0.10, 0.28] -> INCORRECT (< 0.30)
+                elif cs < 0.45:
+                    base_score = 0.30 + ((cs - 0.25) / 0.20) * 0.34    # [0.30, 0.64] -> AMBIGUOUS
+                elif cs <= 0.75:
+                    base_score = 0.65 + min(1.0, (cs - 0.45) / 0.30) * 0.23  # [0.65, 0.88] -> CORRECT (>= 0.65)
+                else:
+                    base_score = min(0.96, 0.88 + ((cs - 0.75) / 0.25) * 0.08)
+        elif 0.0 < raw_score <= 0.08:
+            # Fused RRF score without explicit colpali_score in metadata
+            if raw_score >= 0.030:
+                # Multi-retriever agreement (fused text + vision)
+                base_score = min(0.90, 0.75 + (raw_score - 0.030) * 5.0)
+            elif rank == 1 or raw_score >= 0.0163:
+                base_score = 0.68  # Passes CORRECT gate (>= 0.65)
+            elif rank == 2 or raw_score >= 0.0160:
+                base_score = 0.58  # AMBIGUOUS
+            else:
+                base_score = max(0.20, 0.48 - (rank - 2) * 0.08)
+        else:
+            base_score = max(0.0, min(1.0, raw_score))
+
+        # 3. Optional OCR textual evidence blending (do not penalize if OCR is absent)
+        ocr_text = meta.get("ocr_text", "")
+        content_text = getattr(candidate, "text", "") or ""
+        substantive_text = ""
+        if ocr_text and len(ocr_text.strip()) > 15:
+            substantive_text = ocr_text.strip()
+        elif content_text and not content_text.strip().startswith("[Visual Page") and not content_text.strip().startswith("Visual page "):
+            substantive_text = content_text.strip()
+
+        overlap_ratio = 0.0
+        extracted_strips = []
+        if substantive_text:
+            all_terms = re.findall(r"\w+", query.lower())
+            meaningful_terms = [t for t in all_terms if t not in self.STOPWORDS and len(t) > 1]
+            eval_terms = set(meaningful_terms) if meaningful_terms else set(all_terms)
+            if eval_terms:
+                matches = sum(1 for term in eval_terms if term in substantive_text.lower())
+                overlap_ratio = matches / len(eval_terms)
+                sentences = [s.strip() for s in re.split(r"[.!?\n]+", substantive_text) if len(s.strip()) > 10]
+                extracted_strips = [s for s in sentences if any(term in s.lower() for term in eval_terms)][:3]
+
+        if substantive_text and overlap_ratio > 0.0:
+            boosted = max(base_score, 0.70 * base_score + 0.30 * overlap_ratio)
+            final_score = round(min(1.0, boosted + 0.05 * overlap_ratio), 4)
+            notes = f"Visual scoring: calibrated visual score {base_score:.2f}, OCR text overlap {overlap_ratio:.2f}"
+        else:
+            final_score = round(base_score, 4)
+            notes = f"Visual scoring: calibrated visual score {base_score:.2f} (modality=visual_page)"
+
+        page_num = getattr(candidate, "page_start", 1) or getattr(candidate, "page_number", 1)
+        src_file = getattr(candidate, "source_filename", "document.pdf")
+        if not extracted_strips:
+            extracted_strips = [f"Visual evidence from page {page_num} of {src_file}"]
+
+        return CandidateEvaluation(
+            candidate_id=candidate.candidate_id,
+            relevance_score=final_score,
+            is_relevant=final_score >= 0.50,
+            extracted_strips=extracted_strips,
+            notes=notes,
+        )
+
     def evaluate_candidate(
         self, query: str, candidate: RetrievalCandidate
     ) -> CandidateEvaluation:
+        # Route visual candidates directly to visual evidence evaluator
+        is_visual = (
+            getattr(candidate, "candidate_type", "") == "visual_page"
+            or getattr(candidate, "modality", "") == "visual_page"
+            or (getattr(candidate, "metadata", {}) or {}).get("modality") == "visual_page"
+        )
+        if is_visual:
+            return self._evaluate_visual_candidate(query, candidate)
+
         content = candidate.get_evaluable_content().lower()
         all_terms = re.findall(r"\w+", query.lower())
         meaningful_terms = [t for t in all_terms if t not in self.STOPWORDS and len(t) > 1]
@@ -73,18 +180,8 @@ class HeuristicCRAGEvaluator(BaseCRAGEvaluator):
 
         # Combine candidate retrieval/reranker score with lexical overlap
         raw_score = candidate.retrieval_score if candidate.retrieval_score is not None else 0.5
-        
-        # Handle ColPali multi-vector MaxSim scores (typically in range 2.0 - 15.0)
-        # or RRF reciprocal rank fusion scores (typically in range 0.005 - 0.04)
-        if getattr(candidate, "retrieval_method", "") == "colpali" or getattr(candidate, "candidate_type", "") == "visual_page":
-            if raw_score >= 2.0:
-                base_score = min(1.0, 0.70 + min(0.30, ((raw_score - 2.0) / 10.0) * 0.30))
-            elif raw_score >= 0.5:
-                base_score = min(1.0, 0.50 + ((raw_score - 0.5) / 1.5) * 0.20)
-            else:
-                base_score = max(0.0, raw_score)
-        elif 0.0 < raw_score <= 0.08:
-            # Map top RRF candidates (0.016+ rank 1 in single/multi modalities) to confident base [0.70 - 0.95]
+
+        if 0.0 < raw_score <= 0.08:
             base_score = min(1.0, 0.50 + (raw_score / 0.033) * 0.45)
         elif raw_score > 1.0:
             base_score = min(raw_score / 10.0, 1.0)
@@ -93,26 +190,11 @@ class HeuristicCRAGEvaluator(BaseCRAGEvaluator):
         else:
             base_score = raw_score
 
-        # Composite score
-        is_visual = (
-            getattr(candidate, "candidate_type", "") == "visual_page"
-            or getattr(candidate, "modality", "") == "visual_page"
-            or not content.strip()
-            or content.strip().endswith(f"page {getattr(candidate, 'page_number', 1)}")
-        )
-        if is_visual:
-            # For visual page candidates without raw text (scanned pages / diagrams),
-            # evaluate based on the calibrated visual retrieval score rather than text lexical overlap
-            relevance_score = round(base_score, 4)
-            is_relevant = relevance_score >= 0.45
-            notes = f"Visual scoring: calibrated retriever score {base_score:.2f} (modality=visual_page)"
-            relevant_strips = [f"Visual page {getattr(candidate, 'page_number', 1)} from {getattr(candidate, 'source_filename', 'document')}"]
-        else:
-            relevance_score = round(0.4 * base_score + 0.6 * overlap_ratio, 4)
-            is_relevant = relevance_score >= 0.5
-            notes = f"Heuristic scoring: lexical overlap {overlap_ratio:.2f}, calibrated retriever score {base_score:.2f}"
-            sentences = [s.strip() for s in re.split(r"[.!?\n]+", content) if len(s.strip()) > 15]
-            relevant_strips = [s for s in sentences if any(term in s for term in eval_terms)][:3]
+        relevance_score = round(0.4 * base_score + 0.6 * overlap_ratio, 4)
+        is_relevant = relevance_score >= 0.5
+        notes = f"Heuristic scoring: lexical overlap {overlap_ratio:.2f}, calibrated retriever score {base_score:.2f}"
+        sentences = [s.strip() for s in re.split(r"[.!?\n]+", content) if len(s.strip()) > 15]
+        relevant_strips = [s for s in sentences if any(term in s for term in eval_terms)][:3]
 
         return CandidateEvaluation(
             candidate_id=candidate.candidate_id,
@@ -217,23 +299,53 @@ class T5CRAGEvaluator(BaseCRAGEvaluator):
         if not candidates:
             return []
 
+        # 1. Partition visual candidates lacking substantive text from text candidates
+        evaluations: list[CandidateEvaluation] = [None] * len(candidates)
+        text_indices: list[int] = []
+        text_candidates: list[RetrievalCandidate] = []
+
+        for idx, cand in enumerate(candidates):
+            is_vis = (
+                getattr(cand, "candidate_type", "") == "visual_page"
+                or getattr(cand, "modality", "") == "visual_page"
+                or (getattr(cand, "metadata", {}) or {}).get("modality") == "visual_page"
+            )
+            raw_text = getattr(cand, "text", "") or ""
+            has_substantive_text = bool(
+                raw_text and len(raw_text.strip()) > 20 and not raw_text.strip().startswith("[Visual Page")
+            )
+            if is_vis and not has_substantive_text:
+                # Pure visual candidate: evaluate via calibrated visual evidence strategy
+                evaluations[idx] = self._fallback_evaluator.evaluate_candidate(query, cand)
+            else:
+                text_indices.append(idx)
+                text_candidates.append(cand)
+
+        # If all candidates are pure visual, return evaluations immediately without loading T5!
+        if not text_candidates:
+            return evaluations
+
         if not self._is_loaded:
             try:
                 self.load_model()
             except Exception:
                 pass
 
-        # If model failed to load and fallback is enabled, use heuristic
+        # If model failed to load and fallback is enabled, use heuristic for text candidates
         if not self._is_loaded:
-            return self._fallback_evaluator.evaluate_batch(query, candidates)
+            if self.fallback_on_error:
+                for idx, cand in zip(text_indices, text_candidates):
+                    evaluations[idx] = self._fallback_evaluator.evaluate_candidate(query, cand)
+                return evaluations
+            raise RuntimeError("T5 CRAG model is not loaded.")
 
         try:
             import torch
 
-            # Use official delimiter from model card: f"{query} [SEP] {content}"
+            # 2. Tokenize and evaluate text candidates with T5
             input_texts = [
                 f"{query} [SEP] {cand.get_evaluable_content()}"
-                for cand in candidates
+                for cand in text_candidates
             ]
 
             inputs = self.tokenizer(
@@ -258,20 +370,11 @@ class T5CRAGEvaluator(BaseCRAGEvaluator):
                             raw_list = raw.cpu().tolist() if hasattr(raw, "cpu") else [float(raw)]
                             if not isinstance(raw_list, list):
                                 raw_list = [raw_list]
-                            # Adaptive calibration for compressed regression heads:
-                            # If scores are compressed in a narrow window (e.g. [-1.05, -0.95]),
-                            # scale relative to the batch spread across [0.15, 0.90]
-                            min_s, max_s = min(raw_list), max(raw_list)
-                            if len(raw_list) > 1 and (max_s - min_s) > 1e-4:
-                                scores = [
-                                    round(0.15 + 0.75 * ((s - min_s) / (max_s - min_s)), 4)
-                                    for s in raw_list
-                                ]
-                            else:
-                                scores = [
-                                    round(max(0.0, min(1.0, (s + 1.0) / 2.0)), 4)
-                                    for s in raw_list
-                                ]
+                            # Monotonic, batch-independent logistic sigmoid calibration
+                            scores = [
+                                round(1.0 / (1.0 + math.exp(-max(-15.0, min(15.0, float(s))))), 4)
+                                for s in raw_list
+                            ]
                         else:
                             probs = torch.softmax(logits, dim=-1)[:, 1]
                             scores = probs.cpu().tolist()
@@ -279,45 +382,35 @@ class T5CRAGEvaluator(BaseCRAGEvaluator):
                         raw_list = logits.cpu().tolist() if hasattr(logits, "cpu") else [float(logits)]
                         if not isinstance(raw_list, list):
                             raw_list = [raw_list]
-                        min_s, max_s = min(raw_list), max(raw_list)
-                        if len(raw_list) > 1 and (max_s - min_s) > 1e-4:
-                            scores = [
-                                round(0.15 + 0.75 * ((s - min_s) / (max_s - min_s)), 4)
-                                for s in raw_list
-                            ]
-                        else:
-                            scores = [
-                                round(max(0.0, min(1.0, (s + 1.0) / 2.0)), 4)
-                                for s in raw_list
-                            ]
+                        scores = [
+                            round(1.0 / (1.0 + math.exp(-max(-15.0, min(15.0, float(s))))), 4)
+                            for s in raw_list
+                        ]
                     elif logits.dim() == 3:
                         # Seq2Seq first token logits fallback
                         first_token_logits = logits[:, 0, :]
                         probs = torch.softmax(first_token_logits, dim=-1).max(dim=-1).values
                         scores = probs.cpu().tolist()
                     else:
-                        scores = [0.5] * len(candidates)
+                        scores = [0.5] * len(text_candidates)
                     if isinstance(scores, float):
                         scores = [scores]
                 else:
-                    scores = [0.5] * len(candidates)
+                    scores = [0.5] * len(text_candidates)
 
-            evaluations: list[CandidateEvaluation] = []
-            for cand, score in zip(candidates, scores):
+            for cand, score, orig_idx in zip(text_candidates, scores, text_indices):
                 norm_score = max(0.0, min(1.0, float(score)))
                 content = cand.get_evaluable_content()
                 sentences = [s.strip() for s in re.split(r"[.!?\n]+", content) if len(s.strip()) > 15]
                 query_terms = set(re.findall(r"\w+", query.lower()))
                 strips = [s for s in sentences if any(t in s.lower() for t in query_terms)][:3]
 
-                evaluations.append(
-                    CandidateEvaluation(
-                        candidate_id=cand.candidate_id,
-                        relevance_score=round(norm_score, 4),
-                        is_relevant=norm_score >= 0.5,
-                        extracted_strips=strips,
-                        notes=f"T5 CRAG model confidence: {norm_score:.4f}",
-                    )
+                evaluations[orig_idx] = CandidateEvaluation(
+                    candidate_id=cand.candidate_id,
+                    relevance_score=round(norm_score, 4),
+                    is_relevant=norm_score >= 0.5,
+                    extracted_strips=strips,
+                    notes=f"T5 CRAG model confidence: {norm_score:.4f}",
                 )
             return evaluations
 

@@ -102,21 +102,56 @@ class RAGOrchestrator:
     # Intent Analysis & Routing
     # -------------------------------------------------------------------------
 
-    def analyze_query_intent(self, query: str) -> ModelModality:
+    def analyze_query_intent(
+        self,
+        query: str,
+        document_ids: Optional[List[str]] = None,
+    ) -> ModelModality:
         """Classify query to determine if vision-capable retrieval/model is needed.
 
         Args:
             query: Natural language query string.
+            document_ids: Optional list of document IDs to inspect for document-driven modality.
 
         Returns:
             ModelModality.VISION if query requests charts, graphs, or visual artifacts,
-            otherwise ModelModality.TEXT.
+            or if target documents are scanned / visual-only, otherwise ModelModality.TEXT.
         """
         lower_q = query.lower()
         for kw in self.config.visual_intent_keywords:
             if kw in lower_q:
                 logger.debug("Visual keyword '%s' matched; routing to VISION modality.", kw)
                 return ModelModality.VISION
+
+        # Auto-mode: inspect document modality when target documents are selected
+        if document_ids:
+            try:
+                import json
+                from app.config import default_settings
+                processed_dir = default_settings.get_processed_path()
+                if processed_dir.exists():
+                    for did in document_ids:
+                        doc_path = processed_dir / f"{did}.json"
+                        if doc_path.exists():
+                            try:
+                                d = json.loads(doc_path.read_text(encoding="utf-8"))
+                                is_scanned = d.get("is_scanned", False)
+                                ocr_needed = d.get("ocr_needed", False)
+                                chunk_count = d.get("total_chunks", len(d.get("chunks", [])))
+                                rendered_pages = d.get("rendered_pages", [])
+                                if is_scanned or ocr_needed or (chunk_count == 0 and len(rendered_pages) > 0):
+                                    logger.info(
+                                        "Auto-mode routing: target document '%s' is scanned/visual (chunks=%d, pages=%d). Selecting VISION modality.",
+                                        did,
+                                        chunk_count,
+                                        len(rendered_pages),
+                                    )
+                                    return ModelModality.VISION
+                            except Exception as exc:
+                                logger.debug("Could not inspect document '%s': %s", did, exc)
+            except Exception as exc:
+                logger.debug("Document-driven auto-mode check skipped: %s", exc)
+
         return ModelModality.TEXT
 
     # -------------------------------------------------------------------------
@@ -144,7 +179,9 @@ class RAGOrchestrator:
 
         # Step 1: Query Analysis & Routing
         t_stage_start = time.perf_counter()
-        target_modality = request.model_modality or self.analyze_query_intent(request.query)
+        target_modality = request.model_modality or self.analyze_query_intent(
+            request.query, request.document_ids
+        )
         # If client explicitly specifies text but query is visual, respect client choice
         if request.model_modality is not None:
             target_modality = request.model_modality
@@ -385,7 +422,9 @@ class RAGOrchestrator:
         """
         t_start = time.perf_counter()
 
-        target_modality = request.model_modality or self.analyze_query_intent(request.query)
+        target_modality = request.model_modality or self.analyze_query_intent(
+            request.query, request.document_ids
+        )
         if request.model_modality is not None:
             target_modality = request.model_modality
 
@@ -529,18 +568,48 @@ class RAGOrchestrator:
                         candidates.append(RetrievalCandidate.model_validate(item))
                     elif hasattr(item, "candidate_id"):
                         # Duck-typed RetrievalResult from Person 2
+                        item_modality = getattr(item, "modality", None)
+                        candidate_type = getattr(item, "candidate_type", None)
+                        if candidate_type is None:
+                            candidate_type = (
+                                "visual_page"
+                                if item_modality == "visual_page"
+                                else "text_chunk"
+                            )
+                        meta = dict(getattr(item, "metadata", {}) or {})
+                        if item_modality:
+                            meta["modality"] = item_modality
+                        if hasattr(item, "colpali_score") and "colpali_score" not in meta:
+                            meta["colpali_score"] = getattr(item, "colpali_score")
+                        if hasattr(item, "colpali_rank") and "colpali_rank" not in meta:
+                            meta["colpali_rank"] = getattr(item, "colpali_rank")
+
+                        page_ref = getattr(item, "page_reference", None) or meta.get("image_path")
+                        ret_method = getattr(item, "retrieval_method", None)
+                        if not ret_method:
+                            ret_method = "colpali" if candidate_type == "visual_page" else "hybrid"
+
+                        score_val = getattr(item, "retrieval_score", None)
+                        if score_val is None:
+                            score_val = getattr(item, "fused_score", getattr(item, "score", 0.8))
+
+                        item_text = getattr(item, "text", "") or getattr(item, "content", "")
+                        if not item_text and candidate_type == "visual_page":
+                            item_text = meta.get("ocr_text", "") or f"Visual page {getattr(item, 'page_start', 1)} from {getattr(item, 'source_filename', 'doc.pdf')}"
+
                         cand = RetrievalCandidate(
                             candidate_id=getattr(item, "candidate_id", "c"),
                             document_id=getattr(item, "document_id", "doc"),
                             source_filename=getattr(item, "source_filename", "doc.pdf"),
                             page_start=getattr(item, "page_start", 1),
                             page_end=getattr(item, "page_end", 1),
-                            candidate_type=getattr(item, "candidate_type", "text_chunk"),
-                            text=getattr(item, "text", "") or getattr(item, "content", ""),
-                            page_reference=getattr(item, "page_reference", None),
-                            retrieval_method=getattr(item, "retrieval_method", "hybrid"),
+                            candidate_type=candidate_type,
+                            text=item_text,
+                            page_reference=page_ref,
+                            retrieval_method=ret_method,
                             retrieval_rank=getattr(item, "retrieval_rank", len(candidates) + 1),
-                            retrieval_score=getattr(item, "retrieval_score", getattr(item, "fused_score", 0.8)),
+                            retrieval_score=score_val,
+                            metadata=meta,
                         )
                         candidates.append(cand)
             except Exception as e:
@@ -551,7 +620,7 @@ class RAGOrchestrator:
             candidates.extend(visual_candidates)
 
         # 4. Fallback: If text retrieval returned 0 candidates (e.g. scanned or handwritten PDF),
-        # query visual retrieval bridge as an automatic fallback (bounded by 15s timeout)
+        # query visual retrieval bridge as an automatic fallback (without blocking auto-indexing)
         if not candidates and not visual_candidates and self.visual_bridge is not None:
             try:
                 if getattr(self.visual_bridge, "enabled", False):
@@ -559,33 +628,11 @@ class RAGOrchestrator:
                         "Text retrieval returned 0 candidates. Querying visual retrieval fallback for '%s'...",
                         query[:50],
                     )
-
-                    import concurrent.futures
-
-                    def _visual_fallback():
-                        scored = self.visual_bridge.retrieve(
-                            query=query,
-                            top_k=top_k,
-                            document_ids=document_ids,
-                        )
-                        # If 0 visual hits returned, check if pages exist on disk but were not indexed yet
-                        if not scored:
-                            if self._auto_index_missing_visual_pages(document_ids):
-                                logger.info("Successfully self-healed visual index. Retrying visual retrieval...")
-                                scored = self.visual_bridge.retrieve(
-                                    query=query,
-                                    top_k=top_k,
-                                    document_ids=document_ids,
-                                )
-                        return scored
-
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                        future = executor.submit(_visual_fallback)
-                        try:
-                            scored_visuals = future.result(timeout=15)
-                        except concurrent.futures.TimeoutError:
-                            logger.warning("Visual fallback retrieval timed out after 15s. Proceeding without visual candidates.")
-                            scored_visuals = []
+                    scored_visuals = self.visual_bridge.retrieve(
+                        query=query,
+                        top_k=top_k,
+                        document_ids=document_ids,
+                    )
 
                     for sc in scored_visuals:
                         if isinstance(sc, RetrievalCandidate):
@@ -608,7 +655,7 @@ class RAGOrchestrator:
                                 page_start=page_num,
                                 page_end=page_num,
                                 candidate_type="visual_page",
-                                text=getattr(sc, "text", "") or f"Visual page {page_num} from {src_file}",
+                                text=getattr(sc, "text", "") or meta.get("ocr_text", "") or f"Visual page {page_num} from {src_file}",
                                 page_reference=img_path,
                                 retrieval_method="colpali",
                                 retrieval_rank=getattr(sc, "rank", 1),
@@ -622,17 +669,12 @@ class RAGOrchestrator:
         return candidates
 
     def _auto_index_missing_visual_pages(self, document_ids: Optional[List[str]] = None) -> bool:
-        """Self-healing: check if target documents have rendered pages on disk that are not in Qdrant yet.
-
-        Bounded by a 30s timeout to avoid blocking the query thread on slow CPU inference.
-        """
+        """Helper to index any un-indexed visual pages for target documents into Qdrant."""
         if self.visual_bridge is None or not getattr(self.visual_bridge, "enabled", False):
             return False
 
         try:
             import json
-            import concurrent.futures
-            from pathlib import Path
             from app.config import default_settings
             processed_dir = default_settings.get_processed_path()
             if not processed_dir.exists():
@@ -650,38 +692,30 @@ class RAGOrchestrator:
             if not target_files:
                 return False
 
-            def _do_index() -> bool:
-                indexed_any = False
-                for jf in target_files:
-                    try:
-                        with open(jf, "r", encoding="utf-8") as f:
-                            data = json.load(f)
-                        doc_id = data.get("document_id")
-                        pages = data.get("rendered_pages", [])
-                        filename = data.get("document_name", "document.pdf")
-                        if doc_id and pages:
-                            logger.info("Self-healing: indexing %d visual pages for '%s' into Qdrant...", len(pages), doc_id)
-                            count = self.visual_bridge.index_pages(
-                                rendered_pages=pages,
-                                document_id=doc_id,
-                                source_filename=filename,
-                            )
-                            if count > 0:
-                                indexed_any = True
-                    except Exception as exc:
-                        logger.warning("Auto-index error for %s: %s", jf, exc)
-                return indexed_any
-
-            # Run with timeout to avoid blocking the request indefinitely on slow devices
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(_do_index)
+            indexed_any = False
+            for jf in target_files:
                 try:
-                    return future.result(timeout=30)
-                except concurrent.futures.TimeoutError:
-                    logger.warning("Self-healing auto-index timed out after 30s. Skipping visual reindex.")
-                    return False
-
+                    data = json.loads(jf.read_text(encoding="utf-8"))
+                    doc_id = data.get("document_id")
+                    pages = data.get("rendered_pages", [])
+                    filename = data.get("document_name", "document.pdf")
+                    if doc_id and pages:
+                        if hasattr(self.visual_bridge, "count_document_pages"):
+                            verified = self.visual_bridge.count_document_pages(doc_id)
+                            if verified >= len(pages):
+                                continue
+                        logger.info("Indexing %d visual pages for '%s' into Qdrant...", len(pages), doc_id)
+                        count = self.visual_bridge.index_pages(
+                            rendered_pages=pages,
+                            document_id=doc_id,
+                            source_filename=filename,
+                        )
+                        if count > 0:
+                            indexed_any = True
+                except Exception as exc:
+                    logger.warning("Auto-index error for %s: %s", jf, exc)
+            return indexed_any
         except Exception as exc:
-            logger.warning("Self-healing auto-index failed: %s", exc)
+            logger.warning("Auto-index failed: %s", exc)
             return False
 

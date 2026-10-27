@@ -198,6 +198,16 @@ async def upload_document(
             len(output.rendered_pages),
             output.document_id,
         )
+        try:
+            doc_json_path = settings.get_processed_path() / f"{output.document_id}.json"
+            if doc_json_path.exists():
+                dj = json.loads(doc_json_path.read_text(encoding="utf-8"))
+                dj["visual_indexing_status"] = "pending"
+                dj["visual_indexed"] = False
+                doc_json_path.write_text(json.dumps(dj, indent=2), encoding="utf-8")
+        except Exception as exc:
+            logger.debug("Could not record initial visual_indexing_status: %s", exc)
+
         background_tasks.add_task(
             index_colpali_pages,
             rendered_pages=output.rendered_pages,
@@ -247,6 +257,10 @@ def list_documents(
         file_size = None
         timestamp = None
 
+        visual_indexed = item.get("visual_indexed", False)
+        visual_indexing_status = item.get("visual_indexing_status", "not_started")
+        visual_pages_indexed = item.get("visual_pages_indexed", 0)
+
         if output_json.exists():
             try:
                 data = json.loads(output_json.read_text(encoding="utf-8"))
@@ -257,6 +271,9 @@ def list_documents(
                 is_scanned = data.get("is_scanned", False)
                 ocr_needed = data.get("ocr_needed", False)
                 status_val = data.get("status", status_val)
+                visual_indexed = data.get("visual_indexed", visual_indexed)
+                visual_indexing_status = data.get("visual_indexing_status", visual_indexing_status)
+                visual_pages_indexed = data.get("visual_pages_indexed", visual_pages_indexed)
             except Exception:
                 pass
 
@@ -271,6 +288,9 @@ def list_documents(
                 is_scanned=is_scanned,
                 ocr_needed=ocr_needed,
                 status=status_val,
+                visual_indexed=visual_indexed,
+                visual_indexing_status=visual_indexing_status,
+                visual_pages_indexed=visual_pages_indexed,
             )
         )
 
@@ -286,6 +306,9 @@ def list_documents(
             try:
                 data = json.loads(json_file.read_text(encoding="utf-8"))
                 meta = data.get("metadata", {})
+                visual_indexed = data.get("visual_indexed", False)
+                visual_indexing_status = data.get("visual_indexing_status", "not_started")
+                visual_pages_indexed = data.get("visual_pages_indexed", 0)
                 summaries.append(
                     DocumentSummary(
                         document_id=doc_id,
@@ -297,6 +320,9 @@ def list_documents(
                         is_scanned=data.get("is_scanned", False),
                         ocr_needed=data.get("ocr_needed", False),
                         status=data.get("status"),
+                        visual_indexed=visual_indexed,
+                        visual_indexing_status=visual_indexing_status,
+                        visual_pages_indexed=visual_pages_indexed,
                     )
                 )
             except Exception:
@@ -342,6 +368,10 @@ def get_document_detail(
     if page_images_dir.exists():
         page_images = sorted([str(p.resolve()) for p in page_images_dir.glob("*.png")])
 
+    visual_indexed = data.get("visual_indexed", False)
+    visual_indexing_status = data.get("visual_indexing_status", "not_started")
+    visual_pages_indexed = data.get("visual_pages_indexed", 0)
+
     return DocumentDetailResponse(
         document_id=doc_id,
         filename=filename,
@@ -349,9 +379,117 @@ def get_document_detail(
         chunk_count=chunk_count,
         image_count=len(page_images),
         status=data.get("status", "indexed"),
+        visual_indexed=visual_indexed,
+        visual_indexing_status=visual_indexing_status,
+        visual_pages_indexed=visual_pages_indexed,
         metadata=meta,
         page_images=page_images,
     )
+
+
+@router.get(
+    "/{doc_id}/visual-status",
+    summary="Get Visual Indexing Status",
+    description="Returns live visual indexing status and verified Qdrant point count for a document.",
+)
+def get_visual_indexing_status(
+    doc_id: str,
+    settings: Settings = Depends(get_settings),
+    visual_bridge: Optional[Any] = Depends(get_visual_bridge),
+) -> dict:
+    doc_json = settings.get_processed_path() / f"{doc_id}.json"
+    if not doc_json.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Document with ID '{doc_id}' not found.",
+        )
+
+    data = {}
+    try:
+        data = json.loads(doc_json.read_text(encoding="utf-8"))
+    except Exception:
+        pass
+
+    visual_indexed = data.get("visual_indexed", False)
+    visual_indexing_status = data.get("visual_indexing_status", "not_started")
+    visual_pages_indexed = data.get("visual_pages_indexed", 0)
+
+    if visual_bridge is not None and hasattr(visual_bridge, "count_document_pages"):
+        try:
+            live_count = visual_bridge.count_document_pages(doc_id)
+            if live_count > 0:
+                visual_pages_indexed = live_count
+                visual_indexed = True
+                if visual_indexing_status in ("not_started", "pending", "failed"):
+                    visual_indexing_status = "indexed"
+        except Exception as exc:
+            logger.debug("Live count query failed: %s", exc)
+
+    page_images_dir = settings.get_page_images_path() / doc_id
+    image_count = len(list(page_images_dir.glob("*.png"))) if page_images_dir.exists() else 0
+
+    return {
+        "document_id": doc_id,
+        "visual_indexed": visual_indexed,
+        "visual_indexing_status": visual_indexing_status,
+        "visual_pages_indexed": visual_pages_indexed,
+        "image_count": image_count,
+    }
+
+
+@router.post(
+    "/{doc_id}/index-visual",
+    summary="Index Document Visual Pages into Qdrant",
+    description="Manually triggers or retries ColPali visual page embedding and indexing into Qdrant.",
+)
+def index_document_visual_pages(
+    doc_id: str,
+    settings: Settings = Depends(get_settings),
+    visual_bridge: Optional[Any] = Depends(get_visual_bridge),
+) -> dict:
+    doc_json = settings.get_processed_path() / f"{doc_id}.json"
+    if not doc_json.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Document with ID '{doc_id}' not found.",
+        )
+
+    try:
+        data = json.loads(doc_json.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to read document JSON: {str(exc)}",
+        )
+
+    rendered_pages = data.get("rendered_pages", [])
+    if not rendered_pages:
+        page_images_dir = settings.get_page_images_path() / doc_id
+        if page_images_dir.exists():
+            rendered_pages = [str(p.resolve()) for p in sorted(page_images_dir.glob("*.png"))]
+
+    if not rendered_pages:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"No rendered page images found for document '{doc_id}'.",
+        )
+
+    source_filename = data.get("document_name", f"{doc_id}.pdf")
+    count = index_colpali_pages(
+        rendered_pages=rendered_pages,
+        document_id=doc_id,
+        source_filename=source_filename,
+        colpali_bridge=visual_bridge,
+    )
+
+    return {
+        "document_id": doc_id,
+        "visual_indexed": count > 0,
+        "visual_indexing_status": "indexed" if count > 0 else "failed",
+        "visual_pages_indexed": count,
+        "total_pages": len(rendered_pages),
+        "message": f"Successfully indexed {count} visual pages into Qdrant." if count > 0 else "Visual indexing produced 0 points.",
+    }
 
 
 @router.delete(

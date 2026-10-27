@@ -195,12 +195,36 @@ class ColPaliIndexer:
             )
 
         self._client.upsert(collection_name=self.collection, points=points)
+        persisted_count = self.count_document_pages(document_id)
         logger.info(
-            "Successfully upserted %d page embeddings for document '%s'.",
+            "Successfully upserted %d page embeddings for document '%s' (verified %d points in index).",
             len(points),
             document_id,
+            persisted_count,
         )
-        return len(points)
+        return persisted_count if persisted_count > 0 else len(points)
+
+    def count_document_pages(self, document_id: str) -> int:
+        """Count points persisted in Qdrant for a specific document."""
+        if not _QDRANT_AVAILABLE or self._client is None:
+            return 0
+        try:
+            res = self._client.count(
+                collection_name=self.collection,
+                count_filter=qmodels.Filter(
+                    must=[
+                        qmodels.FieldCondition(
+                            key="document_id",
+                            match=qmodels.MatchValue(value=document_id),
+                        )
+                    ]
+                ),
+                exact=True,
+            )
+            return int(res.count)
+        except Exception as exc:
+            logger.warning("Could not count Qdrant points for document '%s': %s", document_id, exc)
+            return 0
 
     def delete_document_pages(self, document_id: str) -> int:
         """Remove all indexed pages belonging to a document (for re-indexing).

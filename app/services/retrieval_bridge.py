@@ -121,11 +121,91 @@ def index_colpali_pages(
             )
             return 0
 
-    return bridge.index_pages(
-        rendered_pages=rendered_pages,
-        document_id=document_id,
-        source_filename=source_filename,
-    )
+    import json
+    from datetime import datetime, timezone
+    from app.config import default_settings
+
+    processed_dir = default_settings.get_processed_path()
+    doc_json = processed_dir / f"{document_id}.json"
+    manifest_path = processed_dir / "processed_manifest.json"
+
+    # Mark visual indexing status as indexing
+    try:
+        if doc_json.exists():
+            d = json.loads(doc_json.read_text(encoding="utf-8"))
+            d["visual_indexing_status"] = "indexing"
+            d["visual_indexed"] = False
+            doc_json.write_text(json.dumps(d, indent=2), encoding="utf-8")
+        if manifest_path.exists():
+            m = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if document_id in m:
+                m[document_id]["visual_indexing_status"] = "indexing"
+                m[document_id]["visual_indexed"] = False
+                manifest_path.write_text(json.dumps(m, indent=2), encoding="utf-8")
+    except Exception as exc:
+        logger.debug("Could not record initial indexing status for '%s': %s", document_id, exc)
+
+    count = 0
+    try:
+        count = bridge.index_pages(
+            rendered_pages=rendered_pages,
+            document_id=document_id,
+            source_filename=source_filename,
+        )
+    except Exception as exc:
+        logger.error("Visual indexing failed for document '%s': %s", document_id, exc)
+        count = 0
+
+    # Verify persisted point count in Qdrant
+    verified_count = 0
+    try:
+        vc = bridge.count_document_pages(document_id)
+        if isinstance(vc, (int, float)):
+            verified_count = int(vc)
+        elif isinstance(count, (int, float)):
+            verified_count = int(count)
+    except Exception as exc:
+        logger.debug("Could not verify point count for '%s': %s", document_id, exc)
+        verified_count = int(count) if isinstance(count, (int, float)) else 0
+
+    safe_count = int(count) if isinstance(count, (int, float)) else 0
+    if verified_count == 0 and safe_count > 0:
+        verified_count = safe_count
+
+    expected_pages = len(rendered_pages)
+    max_p = getattr(bridge, "max_pages", 20)
+    max_p_int = int(max_p) if isinstance(max_p, (int, float)) else 20
+    is_indexed = (verified_count > 0 and verified_count >= min(expected_pages, max_p_int))
+    status_str = "indexed" if (is_indexed or verified_count > 0) else "failed"
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    try:
+        if doc_json.exists():
+            d = json.loads(doc_json.read_text(encoding="utf-8"))
+            d["visual_indexed"] = is_indexed or (verified_count > 0)
+            d["visual_indexing_status"] = status_str
+            d["visual_pages_indexed"] = verified_count
+            d["visual_indexing_completed_at"] = now_iso
+            doc_json.write_text(json.dumps(d, indent=2), encoding="utf-8")
+        if manifest_path.exists():
+            m = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if document_id in m:
+                m[document_id]["visual_indexed"] = is_indexed or (verified_count > 0)
+                m[document_id]["visual_indexing_status"] = status_str
+                m[document_id]["visual_pages_indexed"] = verified_count
+                m[document_id]["visual_indexing_completed_at"] = now_iso
+                manifest_path.write_text(json.dumps(m, indent=2), encoding="utf-8")
+        logger.info(
+            "Visual indexing lifecycle for '%s': status=%s, verified=%d/%d pages.",
+            document_id,
+            status_str,
+            verified_count,
+            expected_pages,
+        )
+    except Exception as exc:
+        logger.warning("Could not persist final visual indexing status for '%s': %s", document_id, exc)
+
+    return verified_count if verified_count > 0 else count
 
 
 # ===========================================================================
@@ -279,7 +359,18 @@ class ColPaliVisualBridge:
         except Exception as exc:
             logger.warning("Could not delete ColPali pages for '%s': %s", document_id, exc)
 
+    def count_document_pages(self, document_id: str) -> int:
+        """Count verified points in Qdrant for a document."""
+        if not self.enabled or self._indexer is None:
+            return 0
+        try:
+            return self._indexer.count_document_pages(document_id)
+        except Exception as exc:
+            logger.warning("Could not count ColPali pages for '%s': %s", document_id, exc)
+            return 0
+
     @property
     def is_ready(self) -> bool:
         """True if the bridge is enabled and the model is loaded."""
         return self.enabled and self._model is not None
+

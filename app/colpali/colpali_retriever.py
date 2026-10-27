@@ -210,6 +210,7 @@ class ColPaliRetriever:
                         "dpi":           payload.get("dpi", 0),
                         "title":         payload.get("title", ""),
                         "caption":       payload.get("caption", ""),
+                        "ocr_text":      payload.get("ocr_text", ""),
                         "colpali_score": float(hit.score),
                         "colpali_rank":  rank,
                     },
