@@ -85,6 +85,30 @@ class Settings(BaseSettings):
         description="URL of the running Qdrant server.",
     )
 
+    # -----------------------------------------------------------------------
+    # Visual Orchestrator (Ollama Cloud Gemma 4 Vision) Settings
+    # -----------------------------------------------------------------------
+    ollama_visual_api_key: Optional[str] = Field(
+        default=None,
+        description="Dedicated API key for Ollama Cloud Gemma 4 Vision module (OLLAMA_VISUAL_API_KEY).",
+    )
+    ollama_visual_model: str = Field(
+        default="gemma4:31b",
+        description="Ollama Cloud visual model for multimodal page embeddings and reranking.",
+    )
+    ollama_visual_base_url: str = Field(
+        default="https://ollama.com",
+        description="Base URL for Ollama Cloud API.",
+    )
+    gemma_visual_collection_name: str = Field(
+        default="gemma_visual_pages",
+        description="Qdrant collection name for Gemma 4 visual page embeddings.",
+    )
+    gemma_storage_path: str = Field(
+        default="./data/gemma_qdrant_storage",
+        description="Local storage path for embedded Qdrant visual page embeddings.",
+    )
+
     # Scanned PDF detection heuristics
     ocr_min_chars_per_page: int = Field(
         default=40,
@@ -166,6 +190,16 @@ class Settings(BaseSettings):
             os.environ.get("OLLAMA_API_KEY")
             or os.environ.get("OLLAMA_CLOUD_API_KEY")
             or os.environ.get("AMCRAG_OLLAMA_API_KEY")
+        )
+
+    def get_ollama_visual_api_key(self) -> Optional[str]:
+        """Retrieve Ollama Visual API key checking Settings, OLLAMA_VISUAL_API_KEY, AMCRAG_OLLAMA_VISUAL_API_KEY, and OLLAMA_API_KEY."""
+        if self.ollama_visual_api_key:
+            return self.ollama_visual_api_key
+        return (
+            os.environ.get("OLLAMA_VISUAL_API_KEY")
+            or os.environ.get("AMCRAG_OLLAMA_VISUAL_API_KEY")
+            or self.get_ollama_api_key()
         )
 
     def get_uploads_path(self) -> Path:

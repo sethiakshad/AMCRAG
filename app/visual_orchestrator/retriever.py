@@ -77,6 +77,7 @@ class GemmaVisualRetriever:
         query: str,
         top_k: Optional[int] = None,
         doc_ids: Optional[List[str]] = None,
+        document_ids: Optional[List[str]] = None,
     ) -> List[ScoredCandidate]:
         """Search for top visually relevant pages matching the query.
 
@@ -85,6 +86,9 @@ class GemmaVisualRetriever:
         """
         if not self.enabled or not query.strip():
             return []
+
+        if doc_ids is None and document_ids is not None:
+            doc_ids = document_ids
 
         k = top_k or self.top_k
         candidates: List[ScoredCandidate] = []
@@ -185,9 +189,10 @@ class GemmaVisualRetriever:
         query: str,
         top_k: Optional[int] = None,
         doc_ids: Optional[List[str]] = None,
+        document_ids: Optional[List[str]] = None,
     ) -> List[RetrievalCandidate]:
         """Returns results as List[RetrievalCandidate] conforming to Person 4 (CRAG) schema."""
-        scored = self.retrieve(query=query, top_k=top_k, doc_ids=doc_ids)
+        scored = self.retrieve(query=query, top_k=top_k, doc_ids=doc_ids, document_ids=document_ids)
         results: List[RetrievalCandidate] = []
 
         for rank, sc in enumerate(scored, start=1):
@@ -215,9 +220,10 @@ class GemmaVisualRetriever:
         query: str,
         top_k: Optional[int] = None,
         doc_ids: Optional[List[str]] = None,
+        document_ids: Optional[List[str]] = None,
     ) -> List[RetrievalResult]:
         """Returns results as List[RetrievalResult] conforming to Person 3 / schemas.py schema."""
-        scored = self.retrieve(query=query, top_k=top_k, doc_ids=doc_ids)
+        scored = self.retrieve(query=query, top_k=top_k, doc_ids=doc_ids, document_ids=document_ids)
         results: List[RetrievalResult] = []
 
         for rank, sc in enumerate(scored, start=1):

@@ -138,10 +138,16 @@ class RAGOrchestrator:
                                 is_scanned = d.get("is_scanned", False)
                                 ocr_needed = d.get("ocr_needed", False)
                                 chunk_count = d.get("total_chunks", len(d.get("chunks", [])))
+                                zero_text = (
+                                    d.get("zero_text_fallback", False)
+                                    or d.get("zero_text_chunks", False)
+                                    or d.get("zero_embeddings", False)
+                                    or d.get("pipeline_modality") == "visual_only"
+                                )
                                 rendered_pages = d.get("rendered_pages", [])
-                                if is_scanned or ocr_needed or (chunk_count == 0 and len(rendered_pages) > 0):
+                                if is_scanned or ocr_needed or zero_text or (chunk_count == 0 and len(rendered_pages) > 0):
                                     logger.info(
-                                        "Auto-mode routing: target document '%s' is scanned/visual (chunks=%d, pages=%d). Selecting VISION modality.",
+                                        "Auto-mode routing: target document '%s' has 0 text chunks/embeddings or is visual-only (chunks=%d, pages=%d). Selecting VISION modality.",
                                         did,
                                         chunk_count,
                                         len(rendered_pages),
@@ -505,6 +511,33 @@ class RAGOrchestrator:
         """Fetch and combine candidates from Person 2 and Person 3 with error isolation."""
         candidates: List[RetrievalCandidate] = []
 
+        # Check if target documents have 0 text chunks or embeddings (scanned or visual-only)
+        is_zero_text_doc = False
+        if document_ids:
+            try:
+                import json
+                from app.config import default_settings
+                processed_dir = default_settings.get_processed_path()
+                for did in document_ids:
+                    doc_path = processed_dir / f"{did}.json"
+                    if doc_path.exists():
+                        d = json.loads(doc_path.read_text(encoding="utf-8"))
+                        if (
+                            d.get("total_chunks", 0) == 0
+                            or d.get("zero_text_chunks", False)
+                            or d.get("zero_embeddings", False)
+                            or d.get("zero_text_fallback", False)
+                            or d.get("pipeline_modality") == "visual_only"
+                        ):
+                            is_zero_text_doc = True
+                            break
+            except Exception as exc:
+                logger.debug("Error checking zero text document status: %s", exc)
+
+        if is_zero_text_doc and modality != ModelModality.VISION:
+            logger.info("Target document '%s' has 0 text chunks or embeddings. Moving directly to visual module.", document_ids)
+            modality = ModelModality.VISION
+
         # 1. Fetch visual candidates from Person 3 (if modality is VISION and bridge is active)
         visual_candidates = []
         if modality == ModelModality.VISION and self.visual_bridge is not None:
@@ -633,6 +666,14 @@ class RAGOrchestrator:
                         top_k=top_k,
                         document_ids=document_ids,
                     )
+
+                    if not scored_visuals and document_ids:
+                        self._auto_index_missing_visual_pages(document_ids)
+                        scored_visuals = self.visual_bridge.retrieve(
+                            query=query,
+                            top_k=top_k,
+                            document_ids=document_ids,
+                        )
 
                     for sc in scored_visuals:
                         if isinstance(sc, RetrievalCandidate):

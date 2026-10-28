@@ -213,96 +213,76 @@ def index_colpali_pages(
 # ===========================================================================
 
 class ColPaliVisualBridge:
-    """High-level interface bundling the ColPali model, indexer, and retriever.
+    """Unified Visual Bridge for visual page indexing, retrieval, and reranking.
 
-    Designed to be instantiated once (expensive model load) and reused
-    across multiple index and retrieve calls.
-
-    Args:
-        model_name:   HuggingFace model ID.
-        qdrant_url:   URL of the Qdrant server.
-        collection:   Qdrant collection name for ColPali pages.
-        top_k:        Default retrieval top-K.
-        batch_size:   Image embedding batch size.
-        device:       Inference device ("auto", "cuda", or "cpu").
-        enabled:      Master switch — if False, all operations are no-ops.
+    Replaces ColPali with the Gemma 4 Vision visual orchestrator module (app.visual_orchestrator)
+    while maintaining 100% interface compatibility with the existing AMCRAG pipeline.
     """
 
     def __init__(
         self,
-        model_name: str = "vidore/colpali-v1.2",
+        model_name: Optional[str] = None,
         qdrant_url: str = "http://localhost:6333",
-        collection: str = "colpali_pages",
+        collection: Optional[str] = None,
         top_k: int = 5,
         batch_size: int = 4,
         device: str = "auto",
         enabled: bool = True,
         max_pages: int = 20,
+        storage_path: Optional[str] = None,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+        **kwargs: Any,
     ) -> None:
         self.enabled = enabled
         self.max_pages = max_pages
-        self._model = None
-        self._indexer = None
-        self._retriever = None
+        self.top_k = top_k
+        self.device = device
+        self._bridge: Optional[Any] = None
 
         if not enabled:
-            logger.info("ColPaliVisualBridge: ColPali is disabled via config.")
+            logger.info("VisualBridge: Visual retrieval is disabled via config.")
             return
 
         try:
-            from app.colpali.colpali_model import ColPaliModel
-            from app.colpali.colpali_indexer import ColPaliIndexer
-            from app.colpali.colpali_retriever import ColPaliRetriever
-            from qdrant_client import QdrantClient
+            from app.config import default_settings
+            from app.visual_orchestrator import GemmaVisualBridge as GBridge
 
-            self._model = ColPaliModel(
-                model_name=model_name,
-                device=device,
+            resolved_api_key = api_key or default_settings.get_ollama_visual_api_key()
+            resolved_base_url = base_url or getattr(default_settings, "ollama_visual_base_url", "https://ollama.com")
+            resolved_model = (
+                model_name
+                if (model_name and not model_name.startswith("vidore/"))
+                else getattr(default_settings, "ollama_visual_model", "gemma4:31b")
             )
+            resolved_coll = (
+                collection
+                if (collection and collection != "colpali_pages")
+                else getattr(default_settings, "gemma_visual_collection_name", "gemma_visual_pages")
+            )
+            resolved_storage = storage_path or getattr(default_settings, "gemma_storage_path", "./data/gemma_qdrant_storage")
 
-            qdrant_client = None
-            try:
-                qdrant_client = QdrantClient(url=qdrant_url, timeout=2.0)
-                qdrant_client.get_collections()
-            except Exception as exc:
-                logger.info(
-                    "Qdrant server at %s unavailable (%s). Using embedded local storage at ./data/colpali_qdrant_storage.",
-                    qdrant_url,
-                    exc,
-                )
-                qdrant_client = QdrantClient(path="./data/colpali_qdrant_storage")
-
-            self._indexer = ColPaliIndexer(
-                model=self._model,
+            self._bridge = GBridge(
+                api_key=resolved_api_key,
+                base_url=resolved_base_url,
+                model_name=resolved_model,
                 qdrant_url=qdrant_url,
-                collection=collection,
+                storage_path=resolved_storage,
+                collection=resolved_coll,
+                top_k=top_k,
                 batch_size=batch_size,
-                client=qdrant_client,
+                enabled=enabled,
                 max_pages=max_pages,
             )
-            self._retriever = ColPaliRetriever(
-                model=self._model,
-                qdrant_url=qdrant_url,
-                collection=collection,
-                top_k=top_k,
-                enabled=True,
-                client=qdrant_client,
+            logger.info(
+                "VisualBridge initialised with Gemma 4 Vision (model=%s, collection=%s, storage=%s).",
+                resolved_model,
+                resolved_coll,
+                resolved_storage,
             )
-            logger.info("ColPaliVisualBridge initialised (model=%s, device=%s).", model_name, device)
-
-        except ImportError as exc:
-            logger.warning(
-                "ColPali dependencies not installed (%s). Visual retrieval will be unavailable.",
-                exc,
-            )
-            self.enabled = False
         except Exception as exc:
-            logger.error("ColPali model/indexer failed to load: %s. Visual retrieval disabled.", exc)
+            logger.error("VisualBridge failed to initialize: %s. Visual retrieval disabled.", exc)
             self.enabled = False
-
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
 
     def index_pages(
         self,
@@ -310,21 +290,17 @@ class ColPaliVisualBridge:
         document_id: str,
         source_filename: str = "",
     ) -> int:
-        """Embed and upsert rendered page images into Qdrant.
-
-        Returns:
-            Count of pages indexed. Returns 0 if disabled or on error.
-        """
-        if not self.enabled or self._indexer is None:
+        """Embed and upsert rendered page images into Qdrant."""
+        if not self.enabled or self._bridge is None:
             return 0
         try:
-            return self._indexer.index_rendered_pages(
+            return self._bridge.index_pages(
                 rendered_pages=rendered_pages,
                 document_id=document_id,
                 source_filename=source_filename,
             )
         except Exception as exc:
-            logger.error("ColPali indexing failed for document '%s': %s", document_id, exc)
+            logger.error("Visual indexing failed for document '%s': %s", document_id, exc)
             return 0
 
     def retrieve(
@@ -332,45 +308,112 @@ class ColPaliVisualBridge:
         query: str,
         top_k: Optional[int] = None,
         document_ids: Optional[List[str]] = None,
+        doc_ids: Optional[List[str]] = None,
     ) -> List[ScoredCandidate]:
-        """Retrieve visually relevant pages for a query.
-
-        Returns:
-            List[ScoredCandidate] with modality="visual_page". Returns [] if disabled.
-        """
-        if not self.enabled or self._retriever is None:
+        """Retrieve visually relevant pages for a query."""
+        if not self.enabled or self._bridge is None:
             return []
         try:
-            return self._retriever.retrieve(
+            resolved_doc_ids = doc_ids if doc_ids is not None else document_ids
+            return self._bridge.retrieve(
                 query=query,
-                top_k=top_k,
-                document_ids=document_ids,
+                top_k=top_k or self.top_k,
+                doc_ids=resolved_doc_ids,
             )
         except Exception as exc:
-            logger.error("ColPali retrieval failed for query '%s...': %s", query[:40], exc)
+            logger.error("Visual retrieval failed for query '%s...': %s", query[:40], exc)
             return []
 
+    def retrieve_candidates(
+        self,
+        query: str,
+        top_k: Optional[int] = None,
+        document_ids: Optional[List[str]] = None,
+        doc_ids: Optional[List[str]] = None,
+    ) -> List[Any]:
+        """Search and format results as RetrievalCandidate objects for Person 4 (CRAG)."""
+        if not self.enabled or self._bridge is None:
+            return []
+        try:
+            resolved_doc_ids = doc_ids if doc_ids is not None else document_ids
+            return self._bridge.retrieve_candidates(
+                query=query,
+                top_k=top_k or self.top_k,
+                doc_ids=resolved_doc_ids,
+            )
+        except Exception as exc:
+            logger.error("Visual retrieve_candidates failed: %s", exc)
+            return []
+
+    def rerank(
+        self,
+        query: str,
+        candidates: list,
+        strategy: str = "visual_only",
+    ) -> list:
+        """Rerank candidates using Gemma 4 Vision."""
+        if not self.enabled or self._bridge is None or not candidates:
+            return list(candidates)
+        try:
+            return self._bridge.rerank(
+                query=query,
+                candidates=candidates,
+                strategy=strategy,
+            )
+        except Exception as exc:
+            logger.warning("Visual reranker failed: %s. Returning raw candidates.", exc)
+            return list(candidates)
+
     def delete_document(self, document_id: str) -> None:
-        """Remove all indexed pages for a given document (use before re-indexing)."""
-        if not self.enabled or self._indexer is None:
+        """Remove all indexed pages for a given document."""
+        if not self.enabled or self._bridge is None:
             return
         try:
-            self._indexer.delete_document_pages(document_id)
+            self._bridge.delete_document(document_id)
         except Exception as exc:
-            logger.warning("Could not delete ColPali pages for '%s': %s", document_id, exc)
+            logger.warning("Could not delete visual pages for '%s': %s", document_id, exc)
 
     def count_document_pages(self, document_id: str) -> int:
         """Count verified points in Qdrant for a document."""
-        if not self.enabled or self._indexer is None:
+        if not self.enabled or self._bridge is None:
             return 0
         try:
-            return self._indexer.count_document_pages(document_id)
+            return self._bridge.count_document_pages(document_id)
         except Exception as exc:
-            logger.warning("Could not count ColPali pages for '%s': %s", document_id, exc)
+            logger.warning("Could not count visual pages for '%s': %s", document_id, exc)
             return 0
 
     @property
     def is_ready(self) -> bool:
-        """True if the bridge is enabled and the model is loaded."""
-        return self.enabled and self._model is not None
+        """True if the bridge is enabled and ready."""
+        return self.enabled and self._bridge is not None and self._bridge.is_ready
+
+    @property
+    def model(self) -> Any:
+        return self._bridge.model if self._bridge else None
+
+    @property
+    def indexer(self) -> Any:
+        return self._bridge.indexer if self._bridge else None
+
+    @property
+    def retriever(self) -> Any:
+        return self._bridge.retriever if self._bridge else None
+
+    @property
+    def _model(self) -> Any:
+        return self.model
+
+    @property
+    def _indexer(self) -> Any:
+        return self.indexer
+
+    @property
+    def _retriever(self) -> Any:
+        return self.retriever
+
+
+# Direct aliases for seamless compatibility
+GemmaVisualBridge = ColPaliVisualBridge
+index_visual_pages = index_colpali_pages
 

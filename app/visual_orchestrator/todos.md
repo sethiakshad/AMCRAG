@@ -42,3 +42,14 @@ This roadmap tracks the development of the experimental visual retrieval, indexi
 - [x] **Step 9: Targeted Verification on Target PDF (`test_on_svc_pdf.py`)**
   - Tested exclusively on `6-Support+Vector+Classifier.pdf` (3 pages).
   - Successfully rendered 150 DPI page PNGs, indexed into Qdrant `gemma_visual_pages`, and executed multimodal queries.
+
+- [x] **Step 10: Non-Destructive Module Replacement in AMCRAG Pipeline**
+  - Replaced ColPali in `app/services/retrieval_bridge.py` and `app/main.py` with `visual_orchestrator` (`GemmaVisualBridge`).
+  - Completely preserved `app/colpali/` files (none removed or deleted).
+  - Ensured all callers, schemas (`ScoredCandidate`, `RetrievalResult`, `RetrievalCandidate`), and health endpoints remain 100% compatible.
+
+- [x] **Step 11: Zero Text Chunks & Zero Text Embeddings Pipeline Fallback Logic**
+  - Implemented logic in `app/api/v1/endpoints/documents.py`: when text chunks (`len(chunks) == 0`) or text embeddings (`indexed_chunks == 0`) or both are 0, the pipeline automatically routes directly to `visual_orchestrator` module and immediately indexes rendered pages visually into Qdrant.
+  - Implemented auto-mode routing and query retrieval in `app/services/orchestrator.py`: if queried documents have 0 text chunks or 0 text embeddings (or if text retrieval yields 0 candidates), the pipeline moves directly and completely to visual page retrieval.
+  - Flagged `status="visual_only"` in `app/services/pipeline.py` when 0 chunks are extracted.
+  - Validated via unit test suite (`tests/test_zero_text_visual_routing.py`).

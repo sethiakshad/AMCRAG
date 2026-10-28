@@ -184,17 +184,78 @@ async def upload_document(
             detail=f"Invalid or corrupted PDF document: {output.error_message}",
         )
 
-    # 5. Dual Downstream Indexing
-    try:
-        indexed_chunks = index_document_chunks(output.chunks, retriever=retriever)
-    except Exception as exc:
-        logger.warning("Downstream text chunk indexing encountered non-fatal error: %s", exc)
-        indexed_chunks = len(output.chunks)
+    # 5. Dual Downstream Indexing & Zero-Text Routing
+    is_zero_chunks = len(output.chunks) == 0
+    indexed_chunks = 0
+    if not is_zero_chunks:
+        try:
+            indexed_chunks = index_document_chunks(output.chunks, retriever=retriever)
+        except Exception as exc:
+            logger.warning("Downstream text chunk indexing encountered non-fatal error: %s", exc)
+            indexed_chunks = len(output.chunks)
 
-    # Dispatch ColPali visual indexing as background task so HTTP upload returns immediately
+    is_zero_embeddings = (indexed_chunks == 0)
+    is_zero_text = is_zero_chunks or is_zero_embeddings
+
+    # Condition: When text chunks or embedding or both are 0, move directly to visual module (visual_orchestrator)
+    if is_zero_text:
+        logger.info(
+            "Document '%s' produced 0 text chunks or 0 text embeddings (chunks=%d, indexed=%d). "
+            "Moving pipeline directly to visual_orchestrator module.",
+            output.document_id,
+            len(output.chunks),
+            indexed_chunks,
+        )
+        try:
+            doc_json_path = settings.get_processed_path() / f"{output.document_id}.json"
+            if doc_json_path.exists():
+                dj = json.loads(doc_json_path.read_text(encoding="utf-8"))
+                dj["zero_text_chunks"] = is_zero_chunks
+                dj["zero_embeddings"] = is_zero_embeddings
+                dj["zero_text_fallback"] = True
+                dj["pipeline_modality"] = "visual_only"
+                dj["is_scanned"] = True
+                dj["ocr_needed"] = True
+                doc_json_path.write_text(json.dumps(dj, indent=2), encoding="utf-8")
+        except Exception as exc:
+            logger.debug("Could not record zero_text metadata: %s", exc)
+
+        visual_pages_indexed = 0
+        if visual_bridge is not None and getattr(visual_bridge, "enabled", False) and output.rendered_pages:
+            logger.info(
+                "Immediately indexing %d rendered visual pages for '%s' in visual_orchestrator...",
+                len(output.rendered_pages),
+                output.document_id,
+            )
+            try:
+                visual_pages_indexed = index_colpali_pages(
+                    rendered_pages=output.rendered_pages,
+                    document_id=output.document_id,
+                    source_filename=safe_filename,
+                    colpali_bridge=visual_bridge,
+                    qdrant_url=settings.qdrant_url,
+                )
+            except Exception as exc:
+                logger.error("Visual indexing failed for zero-text document '%s': %s", output.document_id, exc)
+
+        return DocumentUploadResponse(
+            document_id=output.document_id,
+            filename=safe_filename,
+            status="indexed_visual" if visual_pages_indexed > 0 else "indexed",
+            page_count=output.metadata.page_count,
+            chunk_count=0,
+            image_count=len(output.rendered_pages),
+            message=(
+                f"0 text chunks/embeddings detected (scanned or visual document). "
+                f"Automatically moved to visual_orchestrator module: {visual_pages_indexed} page(s) visually indexed."
+            ),
+        )
+
+    # Standard path: Text chunks and embeddings exist (> 0).
+    # Dispatch visual indexing as background task for multimodal dual-indexing.
     if visual_bridge is not None and getattr(visual_bridge, "enabled", False) and output.rendered_pages:
         logger.info(
-            "Scheduling background ColPali visual indexing for %d page(s) of document '%s'.",
+            "Scheduling background visual indexing for %d page(s) of document '%s'.",
             len(output.rendered_pages),
             output.document_id,
         )
@@ -217,7 +278,7 @@ async def upload_document(
             qdrant_url=settings.qdrant_url,
         )
     else:
-        logger.info("ColPali visual indexing skipped (bridge disabled or no pages rendered).")
+        logger.info("Visual indexing skipped (bridge disabled or no pages rendered).")
 
     return DocumentUploadResponse(
         document_id=output.document_id,
@@ -226,7 +287,7 @@ async def upload_document(
         page_count=output.metadata.page_count,
         chunk_count=output.total_chunks,
         image_count=len(output.rendered_pages),
-        message=f"Successfully indexed {output.total_chunks} chunks and rendered {len(output.rendered_pages)} pages (ColPali visual indexing running in background).",
+        message=f"Successfully indexed {output.total_chunks} chunks and rendered {len(output.rendered_pages)} pages (Visual indexing running in background).",
     )
 
 

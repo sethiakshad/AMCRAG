@@ -122,7 +122,7 @@ class DocumentUploadResponse(BaseModel):
 
     document_id: str = Field(..., description="Unique deterministic identifier of uploaded document")
     filename: str = Field(..., description="Original PDF filename")
-    status: Literal["indexed", "cached", "failed"] = Field(
+    status: Literal["indexed", "indexed_visual", "cached", "failed"] = Field(
         ..., description="Processing and indexing status"
     )
     page_count: int = Field(default=0, description="Total pages extracted and rendered")

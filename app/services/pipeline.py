@@ -102,7 +102,12 @@ class DocumentProcessingPipeline:
 
         # 5. Determine overall processing status
         status = "success"
-        if extraction_result.is_scanned or extraction_result.ocr_needed:
+        if len(chunks) == 0:
+            extraction_result.is_scanned = True
+            extraction_result.ocr_needed = True
+            status = "visual_only"
+            extraction_result.warnings.append("0 text chunks extracted. Routed to visual_orchestrator module.")
+        elif extraction_result.is_scanned or extraction_result.ocr_needed:
             status = "warning_ocr_needed"
 
         output = ProcessedDocumentOutput(

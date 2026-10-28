@@ -41,6 +41,7 @@ class GemmaVisualBridge:
         batch_size: int = 4,
         enabled: bool = True,
         max_pages: int = 20,
+        **kwargs: Any,
     ) -> None:
         self.enabled = enabled
         self.top_k = top_k
@@ -128,22 +129,26 @@ class GemmaVisualBridge:
         query: str,
         top_k: Optional[int] = None,
         doc_ids: Optional[List[str]] = None,
+        document_ids: Optional[List[str]] = None,
     ) -> List[ScoredCandidate]:
         """Search the visual collection for pages matching the query."""
         if not self.enabled:
             return []
-        return self.retriever.retrieve(query=query, top_k=top_k, doc_ids=doc_ids)
+        resolved_doc_ids = doc_ids if doc_ids is not None else document_ids
+        return self.retriever.retrieve(query=query, top_k=top_k, doc_ids=resolved_doc_ids)
 
     def retrieve_candidates(
         self,
         query: str,
         top_k: Optional[int] = None,
         doc_ids: Optional[List[str]] = None,
+        document_ids: Optional[List[str]] = None,
     ) -> List[RetrievalCandidate]:
         """Search and format results as RetrievalCandidate objects for Person 4 (CRAG)."""
         if not self.enabled:
             return []
-        return self.retriever.retrieve_candidates(query=query, top_k=top_k, doc_ids=doc_ids)
+        resolved_doc_ids = doc_ids if doc_ids is not None else document_ids
+        return self.retriever.retrieve_candidates(query=query, top_k=top_k, doc_ids=resolved_doc_ids)
 
     def rerank(
         self,

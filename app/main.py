@@ -90,22 +90,29 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             )
         app.state.retriever = retriever
 
-        # 3. Person 3: ColPali Visual Retrieval Bridge
+        # 3. Person 3: Visual Orchestrator Bridge (replaces ColPali with Gemma 4 Vision)
         visual_bridge = None
         try:
-            logger.info("Initializing Person 3 ColPaliVisualBridge (enabled=%s)...", settings.colpali_enabled)
+            logger.info(
+                "Initializing Person 3 Visual Orchestrator (Gemma 4 Vision Bridge, enabled=%s)...",
+                settings.colpali_enabled,
+            )
             visual_bridge = ColPaliVisualBridge(
+                api_key=settings.get_ollama_visual_api_key(),
+                base_url=settings.ollama_visual_base_url,
+                model_name=settings.ollama_visual_model,
                 qdrant_url=settings.qdrant_url,
-                collection=settings.colpali_collection_name,
+                storage_path=settings.gemma_storage_path,
+                collection=settings.gemma_visual_collection_name,
                 top_k=settings.colpali_top_k,
                 batch_size=settings.colpali_batch_size,
                 device=settings.colpali_device,
                 enabled=settings.colpali_enabled,
                 max_pages=settings.colpali_max_pages_per_doc,
             )
-            logger.info("ColPaliVisualBridge initialized (is_ready=%s).", visual_bridge.is_ready)
+            logger.info("VisualBridge (Gemma 4 Vision) initialized (is_ready=%s).", visual_bridge.is_ready)
         except Exception as exc:
-            logger.warning("ColPaliVisualBridge failed to initialize: %s. Visual search disabled.", exc)
+            logger.warning("VisualBridge failed to initialize: %s. Visual search disabled.", exc)
         app.state.visual_bridge = visual_bridge
 
         # 4. Person 4: CRAG Controller (Evaluator + Decision Engine + Reformulator)

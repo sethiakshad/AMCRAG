@@ -7,8 +7,10 @@ from app.services.page_renderer import PageRenderer
 from app.services.pipeline import DocumentProcessingPipeline
 from app.services.retrieval_bridge import (
     ColPaliVisualBridge,
+    GemmaVisualBridge,
     index_colpali_pages,
     index_document_chunks,
+    index_visual_pages,
 )
 
 __all__ = [
@@ -16,11 +18,13 @@ __all__ = [
     "ColPaliVisualBridge",
     "DocumentProcessingPipeline",
     "DuplicateDetector",
+    "GemmaVisualBridge",
     "GeneratorConfig",
     "OrchestratorConfig",
     "PageRenderer",
     "RAGOrchestrator",
     "index_colpali_pages",
     "index_document_chunks",
+    "index_visual_pages",
 ]
 
