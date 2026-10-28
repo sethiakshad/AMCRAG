@@ -152,6 +152,10 @@ class ColPaliIndexer:
             self.collection,
         )
 
+        total_visual_chunks = len(pages_to_index)
+        print(f"[VisualOrchestrator] Ingesting {total_visual_chunks} visual chunks into Knowledge Stores...")
+        print(f"[VisualEngine] Computing embeddings for {total_visual_chunks} visual chunks...")
+
         # Load all images upfront for batch embedding
         images, valid_pages = self._load_images(pages_to_index)
         if not images:
@@ -196,6 +200,8 @@ class ColPaliIndexer:
 
         self._client.upsert(collection_name=self.collection, points=points)
         persisted_count = self.count_document_pages(document_id)
+        print(f"[VisualEngine] Successfully indexed {len(points)} visual vectors in Qdrant.")
+        print(f"[VisualOrchestrator] Visual Knowledge Base indexing completed successfully.")
         logger.info(
             "Successfully upserted %d page embeddings for document '%s' (verified %d points in index).",
             len(points),

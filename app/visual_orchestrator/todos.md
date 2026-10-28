@@ -53,3 +53,8 @@ This roadmap tracks the development of the experimental visual retrieval, indexi
   - Implemented auto-mode routing and query retrieval in `app/services/orchestrator.py`: if queried documents have 0 text chunks or 0 text embeddings (or if text retrieval yields 0 candidates), the pipeline moves directly and completely to visual page retrieval.
   - Flagged `status="visual_only"` in `app/services/pipeline.py` when 0 chunks are extracted.
   - Validated via unit test suite (`tests/test_zero_text_visual_routing.py`).
+
+- [x] **Step 12: Visual Chunking & Progress Reporting Alignment**
+  - Added visual chunking and embedding progress logging in [indexer.py](file:///Users/kanishkchaurasia/Documents/AMCRAG/app/visual_orchestrator/indexer.py), [colpali_indexer.py](file:///Users/kanishkchaurasia/Documents/AMCRAG/app/colpali/colpali_indexer.py), and [page_renderer.py](file:///Users/kanishkchaurasia/Documents/AMCRAG/app/services/page_renderer.py).
+  - Exact 1-to-1 parity with text chunk reporting: `[VisualOrchestrator] Ingesting N visual chunks into Knowledge Stores...`, `[VisualEngine] Computing embeddings for N visual chunks...`, interactive `Batches: ... [time/chunk]`, and `[VisualEngine] Successfully indexed N visual vectors in Qdrant.`
+

@@ -49,8 +49,12 @@ class GemmaVisualIndexer:
         self.client = client
         if self.client is None:
             if storage_path and (not qdrant_url or storage_path != "./data/gemma_qdrant_storage"):
-                Path(storage_path).mkdir(parents=True, exist_ok=True)
-                self.client = QdrantClient(path=storage_path)
+                try:
+                    Path(storage_path).mkdir(parents=True, exist_ok=True)
+                    self.client = QdrantClient(path=storage_path)
+                except Exception as exc:
+                    logger.warning("Local Qdrant storage at %s locked/unavailable (%s). Using memory.", storage_path, exc)
+                    self.client = QdrantClient(location=":memory:")
             else:
                 self._init_qdrant(qdrant_url, storage_path, recreate)
         self._ensure_collection(recreate)
@@ -169,16 +173,33 @@ class GemmaVisualIndexer:
         source_filename: Optional[str] = None,
     ) -> int:
         """Index a list of PageRenderInfo objects into Qdrant. Matches ColPaliIndexer API."""
-        indexed_count = 0
-        doc_filename = source_filename or f"{document_id}.pdf"
+        if not rendered_pages:
+            print(f"[VisualOrchestrator] No visual chunks provided for document '{document_id}'.")
+            return 0
 
-        for page_info in rendered_pages:
+        doc_filename = source_filename or f"{document_id}.pdf"
+        total_pages = len(rendered_pages)
+
+        print(f"[VisualOrchestrator] Ingesting {total_pages} visual chunks into Knowledge Stores...")
+        print(f"[VisualEngine] Computing embeddings for {total_pages} visual chunks...")
+
+        try:
+            from tqdm import tqdm
+            pbar = tqdm(total=total_pages, desc="Batches", unit="chunk", leave=True)
+        except Exception:
+            pbar = None
+
+        indexed_count = 0
+
+        for idx, page_info in enumerate(rendered_pages, start=1):
             img_path = getattr(page_info, "image_path", None)
-            page_num = getattr(page_info, "page_number", 1)
+            page_num = getattr(page_info, "page_number", idx)
             page_text = getattr(page_info, "extracted_text", None)
             meta = getattr(page_info, "metadata", {}) or {}
 
             if not img_path:
+                if pbar:
+                    pbar.update(1)
                 continue
 
             success = self.index_page(
@@ -191,11 +212,19 @@ class GemmaVisualIndexer:
             )
             if success:
                 indexed_count += 1
+            if pbar:
+                pbar.update(1)
+
+        if pbar:
+            pbar.close()
+
+        print(f"[VisualEngine] Successfully indexed {indexed_count} visual vectors in Qdrant.")
+        print(f"[VisualOrchestrator] Visual Knowledge Base indexing completed successfully.")
 
         logger.info(
             "GemmaVisualIndexer: Indexed %d/%d pages for document '%s'",
             indexed_count,
-            len(rendered_pages),
+            total_pages,
             document_id,
         )
         return indexed_count

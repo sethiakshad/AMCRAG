@@ -152,7 +152,13 @@ class ColPaliModel:
             step,
         )
 
-        for i in range(0, total, step):
+        try:
+            from tqdm import tqdm
+            batch_iter = tqdm(range(0, total, step), desc="Batches", unit="chunk", leave=True)
+        except Exception:
+            batch_iter = range(0, total, step)
+
+        for i in batch_iter:
             t0 = time.time()
             batch_imgs = images[i : i + step]
             batch = self._processor.process_images(batch_imgs).to(self.device)

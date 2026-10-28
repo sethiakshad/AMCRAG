@@ -86,6 +86,7 @@ class PageRenderer:
                 self.dpi,
                 output_dir,
             )
+            print(f"[VisualChunker] Generated {len(rendered_pages)} visual page chunk(s) from {len(rendered_pages)} pages for document {document_id}")
             return rendered_pages
 
         finally:

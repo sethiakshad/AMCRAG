@@ -202,6 +202,7 @@ def index_colpali_pages(
             verified_count,
             expected_pages,
         )
+        print(f"[VisualBridge] Visual indexing lifecycle for '{document_id}': verified {verified_count}/{expected_pages} visual chunk(s) in Qdrant (status: {status_str}).")
     except Exception as exc:
         logger.warning("Could not persist final visual indexing status for '%s': %s", document_id, exc)
 
