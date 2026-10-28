@@ -123,34 +123,39 @@ class RAGOrchestrator:
                 logger.debug("Visual keyword '%s' matched; routing to VISION modality.", kw)
                 return ModelModality.VISION
 
-        # Auto-mode: inspect document modality when target documents are selected
-        if document_ids:
-            try:
-                import json
-                from app.config import default_settings
-                processed_dir = default_settings.get_processed_path()
-                if processed_dir.exists():
-                    for did in document_ids:
-                        doc_path = processed_dir / f"{did}.json"
-                        if doc_path.exists():
-                            try:
-                                d = json.loads(doc_path.read_text(encoding="utf-8"))
-                                is_scanned = d.get("is_scanned", False)
-                                ocr_needed = d.get("ocr_needed", False)
-                                chunk_count = d.get("total_chunks", len(d.get("chunks", [])))
-                                rendered_pages = d.get("rendered_pages", [])
-                                if is_scanned or ocr_needed or (chunk_count == 0 and len(rendered_pages) > 0):
-                                    logger.info(
-                                        "Auto-mode routing: target document '%s' is scanned/visual (chunks=%d, pages=%d). Selecting VISION modality.",
-                                        did,
-                                        chunk_count,
-                                        len(rendered_pages),
-                                    )
-                                    return ModelModality.VISION
-                            except Exception as exc:
-                                logger.debug("Could not inspect document '%s': %s", did, exc)
-            except Exception as exc:
-                logger.debug("Document-driven auto-mode check skipped: %s", exc)
+        # Auto-mode: inspect document modality when target documents are selected, or check entire KB
+        try:
+            import json
+            from app.config import default_settings
+            processed_dir = default_settings.get_processed_path()
+            if processed_dir.exists():
+                candidate_paths = (
+                    [processed_dir / f"{did}.json" for did in document_ids]
+                    if document_ids
+                    else list(processed_dir.glob("*.json"))
+                )
+                for doc_path in candidate_paths:
+                    if doc_path.name == "processed_manifest.json" or not doc_path.exists():
+                        continue
+                    try:
+                        d = json.loads(doc_path.read_text(encoding="utf-8"))
+                        is_scanned = d.get("is_scanned", False)
+                        ocr_needed = d.get("ocr_needed", False)
+                        chunk_count = d.get("total_chunks", len(d.get("chunks", [])))
+                        rendered_pages = d.get("rendered_pages", [])
+                        if is_scanned or ocr_needed or (chunk_count == 0 and len(rendered_pages) > 0):
+                            logger.info(
+                                "Auto-mode routing: visual document '%s' detected (scanned=%s, chunks=%d, pages=%d). Selecting VISION modality.",
+                                doc_path.stem,
+                                is_scanned,
+                                chunk_count,
+                                len(rendered_pages),
+                            )
+                            return ModelModality.VISION
+                    except Exception as exc:
+                        logger.debug("Could not inspect document '%s': %s", doc_path.name, exc)
+        except Exception as exc:
+            logger.debug("Document-driven auto-mode check skipped: %s", exc)
 
         return ModelModality.TEXT
 
@@ -505,46 +510,45 @@ class RAGOrchestrator:
         """Fetch and combine candidates from Person 2 and Person 3 with error isolation."""
         candidates: List[RetrievalCandidate] = []
 
-        # 1. Fetch visual candidates from Person 3 (if modality is VISION and bridge is active)
+        # 1. Fetch visual candidates from Person 3 whenever ColPali visual bridge is active
         visual_candidates = []
-        if modality == ModelModality.VISION and self.visual_bridge is not None:
+        if self.visual_bridge is not None and getattr(self.visual_bridge, "enabled", False):
             try:
-                if getattr(self.visual_bridge, "enabled", False):
-                    scored_visuals = self.visual_bridge.retrieve(
-                        query=query,
-                        top_k=top_k,
-                        document_ids=document_ids,
-                    )
-                    # Convert ScoredCandidate to RetrievalCandidate if needed
-                    for sc in scored_visuals:
-                        if isinstance(sc, RetrievalCandidate):
-                            visual_candidates.append(sc)
-                        elif hasattr(sc, "to_candidate"):
-                            visual_candidates.append(sc.to_candidate())
-                        elif isinstance(sc, dict):
-                            visual_candidates.append(RetrievalCandidate.model_validate(sc))
-                        else:
-                            meta = getattr(sc, "metadata", {}) or {}
-                            img_path = meta.get("image_path") or getattr(sc, "image_path", None)
-                            doc_id = getattr(sc, "document_id", "doc")
-                            page_num = getattr(sc, "page_number", 1)
-                            src_file = getattr(sc, "source_filename", "") or "document.pdf"
-                            score = float(getattr(sc, "score", 0.8))
-                            cand = RetrievalCandidate(
-                                candidate_id=getattr(sc, "chunk_id", None) or f"{doc_id}_p{page_num}",
-                                document_id=doc_id,
-                                source_filename=src_file,
-                                page_start=page_num,
-                                page_end=page_num,
-                                candidate_type="visual_page",
-                                text=getattr(sc, "text", "") or f"Visual page {page_num} from {src_file}",
-                                page_reference=img_path,
-                                retrieval_method="colpali",
-                                retrieval_rank=getattr(sc, "rank", 1),
-                                retrieval_score=score,
-                                metadata=meta,
-                            )
-                            visual_candidates.append(cand)
+                scored_visuals = self.visual_bridge.retrieve(
+                    query=query,
+                    top_k=top_k,
+                    document_ids=document_ids,
+                )
+                # Convert ScoredCandidate to RetrievalCandidate if needed
+                for sc in scored_visuals:
+                    if isinstance(sc, RetrievalCandidate):
+                        visual_candidates.append(sc)
+                    elif hasattr(sc, "to_candidate"):
+                        visual_candidates.append(sc.to_candidate())
+                    elif isinstance(sc, dict):
+                        visual_candidates.append(RetrievalCandidate.model_validate(sc))
+                    else:
+                        meta = getattr(sc, "metadata", {}) or {}
+                        img_path = meta.get("image_path") or getattr(sc, "image_path", None)
+                        doc_id = getattr(sc, "document_id", "doc")
+                        page_num = getattr(sc, "page_number", 1)
+                        src_file = getattr(sc, "source_filename", "") or "document.pdf"
+                        score = float(getattr(sc, "score", 0.8))
+                        cand = RetrievalCandidate(
+                            candidate_id=getattr(sc, "chunk_id", None) or f"{doc_id}_p{page_num}",
+                            document_id=doc_id,
+                            source_filename=src_file,
+                            page_start=page_num,
+                            page_end=page_num,
+                            candidate_type="visual_page",
+                            text=getattr(sc, "text", "") or f"Visual page {page_num} from {src_file}",
+                            page_reference=img_path,
+                            retrieval_method="colpali",
+                            retrieval_rank=getattr(sc, "rank", 1),
+                            retrieval_score=score,
+                            metadata=meta,
+                        )
+                        visual_candidates.append(cand)
             except Exception as e:
                 logger.warning("Visual retrieval via ColPali bridge failed: %s; falling back to text.", e)
 

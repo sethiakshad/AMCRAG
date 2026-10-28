@@ -25,12 +25,22 @@ class PageRenderer:
         self.settings = settings or default_settings
         self.dpi = dpi if dpi is not None else self.settings.render_dpi
 
-    def render_document(self, pdf_path: Path, document_id: str) -> List[PageRenderInfo]:
-        """Render all pages of the given PDF to images at the configured DPI.
+    def render_document(
+        self,
+        pdf_path: Path,
+        document_id: str,
+        max_pages: Optional[int] = None,
+    ) -> List[PageRenderInfo]:
+        """Render pages of the given PDF to images at the configured DPI.
+
+        For large documents (e.g. 800-page pure-text PDFs), rendering is capped
+        to max_pages (defaulting to settings.colpali_max_pages_per_doc) to prevent
+        excessive disk usage and slow I/O.
 
         Args:
             pdf_path: Path to the target PDF file.
             document_id: Unique document identifier used to namespace the output directory.
+            max_pages: Optional maximum page limit to render. If None, uses settings.colpali_max_pages_per_doc.
 
         Returns:
             List of PageRenderInfo detailing image paths, dimensions, and page numbers.
@@ -52,7 +62,19 @@ class PageRenderer:
             raise ValueError(f"Unable to render PDF pages: {e}") from e
 
         try:
-            for page_idx in range(len(doc)):
+            total_pages = len(doc)
+            limit = max_pages if max_pages is not None else getattr(self.settings, "colpali_max_pages_per_doc", 20)
+            render_count = min(total_pages, limit) if (limit and limit > 0) else total_pages
+
+            if total_pages > render_count:
+                logger.info(
+                    "Document %s has %d pages. Rendering first %d pages for visual representations.",
+                    document_id,
+                    total_pages,
+                    render_count,
+                )
+
+            for page_idx in range(render_count):
                 page_num = page_idx + 1
                 page = doc[page_idx]
 

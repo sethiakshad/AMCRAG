@@ -138,8 +138,8 @@ class ColPaliModel:
             List of per-image multi-vector embeddings.
         """
         if self.device == "cpu" and torch is not None:
-            # Prevent PyTorch OpenMP from starving the FastAPI event loop and OS
-            torch.set_num_threads(max(1, min(4, os.cpu_count() or 1)))
+            # Use up to 12 cores for fast matrix math while preserving 4 cores for FastAPI event loop
+            torch.set_num_threads(max(1, min(12, os.cpu_count() or 1)))
 
         all_embeddings: List[List[List[float]]] = []
         total = len(images)
@@ -215,6 +215,24 @@ class ColPaliModel:
 
         # MaxSim: max over pages for each query token, then mean over query tokens
         return float(sim.max(dim=1).values.mean().item())
+
+    def score_multi_vector(
+        self,
+        query_embeddings: Any,
+        image_embeddings: Any,
+    ) -> Any:
+        """Official ColPaliProcessor score_multi_vector API matching the official ColPali guide.
+
+        Calculates multi-vector late interaction scores across queries and document page representations.
+        """
+        if self._processor is not None and hasattr(self._processor, "score_multi_vector"):
+            import torch
+            if not isinstance(query_embeddings, torch.Tensor):
+                query_embeddings = torch.tensor(query_embeddings, device=self.device)
+            if not isinstance(image_embeddings, torch.Tensor):
+                image_embeddings = torch.tensor(image_embeddings, device=self.device)
+            return self._processor.score_multi_vector(query_embeddings, image_embeddings)
+        return self.score(query_embeddings, image_embeddings)
 
     # ------------------------------------------------------------------
     # Internal helpers

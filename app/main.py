@@ -42,6 +42,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
+# Configure structured application logger for AMCRAG
 logger = logging.getLogger("amcrag.main")
 
 
