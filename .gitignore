@@ -86,5 +86,7 @@ scratch/
 *testkey*.py
 test_local_*.py
 *.log
+benchmark_visualizations/
+btp5sem.csv
 
 
